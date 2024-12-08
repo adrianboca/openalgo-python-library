@@ -1,31 +1,38 @@
 # -*- coding: utf-8 -*-
 """
-OpenAlgo REST API Documentation
+OpenAlgo REST API Documentation - Order Methods
     https://docs.openalgo.in
 """
 
 import requests
+from .base import BaseAPI
 
-
-class api:
+class OrderAPI(BaseAPI):
     """
-    A class to handle all the API calls to OpenAlgo.
+    Order management API methods for OpenAlgo.
+    Inherits from the BaseAPI class.
     """
 
-    def __init__(self, api_key, host="http://127.0.0.1:5000", version="v1"):
-        """
-        Initialize the api object with an API key and optionally a host URL and API version.
-
-        Attributes:
-        - api_key (str): User's API key.
-        - host (str): Base URL for the API endpoints. Defaults to localhost.
-        - version (str): API version. Defaults to "v1".
-        """
-        self.api_key = api_key
-        self.base_url = f"{host}/api/{version}/"
-        self.headers = {
-            'Content-Type': 'application/json'
-        }
+    def _handle_response(self, response):
+        """Helper method to handle API responses"""
+        try:
+            if response.status_code != 200:
+                return {
+                    'status': 'error',
+                    'message': f'HTTP {response.status_code}: {response.text}'
+                }
+            return response.json()
+        except requests.exceptions.JSONDecodeError:
+            return {
+                'status': 'error',
+                'message': 'Invalid JSON response from server',
+                'raw_response': response.text
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': str(e)
+            }
 
     def placeorder(self, *, strategy="Python", symbol, action, exchange, price_type="MARKET", product="MIS", quantity=1, **kwargs):
         """
@@ -38,8 +45,14 @@ class api:
         - exchange (str): Exchange code. Required.
         - price_type (str, optional): Type of price. Defaults to "MARKET".
         - product (str, optional): Product type. Defaults to "MIS".
-        - quantity (int, optional): Quantity to trade. Defaults to 1.
-        - **kwargs: Optional parameters like price, trigger_price, disclosed_quantity, etc.
+        - quantity (int/str, optional): Quantity to trade. Defaults to 1.
+        - **kwargs: Optional parameters like:
+            - price (str): Required for LIMIT orders
+            - trigger_price (str): Required for SL and SL-M orders
+            - disclosed_quantity (str): Disclosed quantity
+            - target (str): Target price
+            - stoploss (str): Stoploss price
+            - trailing_sl (str): Trailing stoploss points
 
         Returns:
         dict: JSON response from the API.
@@ -47,7 +60,7 @@ class api:
         url = self.base_url + "placeorder"
         payload = {
             "apikey": self.api_key,
-            "strategy": strategy,  # Default strategy set to "Python"
+            "strategy": strategy,
             "symbol": symbol,
             "action": action,
             "exchange": exchange,
@@ -55,9 +68,13 @@ class api:
             "product": product,
             "quantity": str(quantity)
         }
-        payload.update(kwargs)
+        # Convert numeric values to strings
+        for key, value in kwargs.items():
+            if value is not None:
+                payload[key] = str(value)
+        
         response = requests.post(url, json=payload, headers=self.headers)
-        return response.json()
+        return self._handle_response(response)
     
     def placesmartorder(self, *, strategy="Python", symbol, action, exchange, price_type="MARKET", product="MIS", quantity=1, position_size, **kwargs):
         """
@@ -70,9 +87,15 @@ class api:
         - exchange (str): Exchange code. Required.
         - price_type (str, optional): Type of price. Defaults to "MARKET".
         - product (str, optional): Product type. Defaults to "MIS".
-        - quantity (int, optional): Quantity to trade. Defaults to 1.
-        - position_size (int): Required position size.
-        - **kwargs: Optional parameters like price, trigger_price, disclosed_quantity, etc.
+        - quantity (int/str, optional): Quantity to trade. Defaults to 1.
+        - position_size (int/str): Required position size.
+        - **kwargs: Optional parameters like:
+            - price (str): Required for LIMIT orders
+            - trigger_price (str): Required for SL and SL-M orders
+            - disclosed_quantity (str): Disclosed quantity
+            - target (str): Target price
+            - stoploss (str): Stoploss price
+            - trailing_sl (str): Trailing stoploss points
 
         Returns:
         dict: JSON response from the API.
@@ -89,11 +112,15 @@ class api:
             "quantity": str(quantity),
             "position_size": str(position_size)
         }
-        payload.update(kwargs)
+        # Convert numeric values to strings
+        for key, value in kwargs.items():
+            if value is not None:
+                payload[key] = str(value)
+        
         response = requests.post(url, json=payload, headers=self.headers)
-        return response.json()
+        return self._handle_response(response)
     
-    def modifyorder(self, *, order_id, strategy="Python", symbol, action, exchange, price_type="LIMIT", product, quantity, price, **kwargs):
+    def modifyorder(self, *, order_id, strategy="Python", symbol, action, exchange, price_type="LIMIT", product, quantity, price, disclosed_quantity="0", trigger_price="0", **kwargs):
         """
         Modify an existing order.
 
@@ -105,9 +132,11 @@ class api:
         - exchange (str): Exchange code. Required.
         - price_type (str, optional): Type of price. Defaults to "LIMIT".
         - product (str): Product type. Required.
-        - quantity (int): Quantity to trade. Required.
-        - price (float): New price for the order. Required.
-        - **kwargs: Optional parameters like trigger_price, disclosed_quantity, etc.
+        - quantity (int/str): Quantity to trade. Required.
+        - price (str): New price for the order. Required.
+        - disclosed_quantity (str): Disclosed quantity. Required.
+        - trigger_price (str): Trigger price. Required.
+        - **kwargs: Optional parameters
 
         Returns:
         dict: JSON response from the API.
@@ -123,11 +152,17 @@ class api:
             "pricetype": price_type,
             "product": product,
             "quantity": str(quantity),
-            "price": str(price)
+            "price": str(price),
+            "disclosed_quantity": str(disclosed_quantity),
+            "trigger_price": str(trigger_price)
         }
-        payload.update(kwargs)
+        # Convert numeric values to strings
+        for key, value in kwargs.items():
+            if value is not None:
+                payload[key] = str(value)
+        
         response = requests.post(url, json=payload, headers=self.headers)
-        return response.json()
+        return self._handle_response(response)
     
     def cancelorder(self, *, order_id, strategy="Python"):
         """
@@ -147,9 +182,8 @@ class api:
             "strategy": strategy
         }
         response = requests.post(url, json=payload, headers=self.headers)
-        return response.json()
+        return self._handle_response(response)
     
-
     def closeposition(self, *, strategy="Python"):
         """
         Close all open positions for a given strategy.
@@ -166,7 +200,7 @@ class api:
             "strategy": strategy
         }
         response = requests.post(url, json=payload, headers=self.headers)
-        return response.json()
+        return self._handle_response(response)
     
     def cancelallorder(self, *, strategy="Python"):
         """
@@ -184,6 +218,4 @@ class api:
             "strategy": strategy
         }
         response = requests.post(url, json=payload, headers=self.headers)
-        return response.json()
-
-
+        return self._handle_response(response)

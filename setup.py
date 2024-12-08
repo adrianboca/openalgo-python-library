@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="openalgo",
-    version="1.0.2",
+    version="1.0.3",  # Updated version with data API features
     author="Rajandran R",
     author_email="rajandran@marketcalls.in",
     description="A Python library for interacting with OpenAlgo's trading APIs",
@@ -12,6 +12,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "requests",
+        "pandas",  # Added pandas dependency for history data handling
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
