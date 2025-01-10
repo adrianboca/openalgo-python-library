@@ -14,4 +14,4 @@ class api(OrderAPI, DataAPI, AccountAPI):
     """
     pass
 
-__version__ = "1.0.7"
+__version__ = "1.0.8"

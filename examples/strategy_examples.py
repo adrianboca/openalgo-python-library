@@ -3,6 +3,7 @@ Example of using OpenAlgo strategy with client instance
 """
 
 from openalgo import Strategy
+import requests
 
 # Initialize client with your OpenAlgo server URL and webhook ID
 client = Strategy(
@@ -10,16 +11,18 @@ client = Strategy(
     webhook_id="your-webhook-id"        # Get this from OpenAlgo strategy section
 )
 
-# Example 1: Long/Short only mode (configured in OpenAlgo)
-client.strategyorder("RELIANCE", "BUY")
+try:
+    # Example 1: Long/Short only mode (configured in OpenAlgo)
+    response = client.strategyorder("RELIANCE", "BUY")
+    print(f"Order sent successfully: {response}")
 
-# Example 2: Both mode with position size
-client.strategyorder("ZOMATO", "SELL", 10)
+    # Example 2: Both mode with position size
+    response = client.strategyorder("ZOMATO", "SELL", 10)
+    print(f"Order sent successfully: {response}")
 
-# You can also create multiple strategy instances if needed
-another_strategy = Strategy(
-    host_url="http://127.0.0.1:5000",
-    webhook_id="another-webhook-id"
-)
+    # Example 3: Close position (position_size = 0)
+    response = client.strategyorder("ZOMATO", "BUY", 0)  # Close short position
+    print(f"Position closed successfully: {response}")
 
-# The first initialized Strategy becomes the default for strategyorder()
+except requests.exceptions.RequestException as e:
+    print(f"Error sending order: {e}")

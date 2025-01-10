@@ -24,11 +24,12 @@ client = api(
 
 ### 1. Strategy API
 
-#### TradingView Strategy Integration
-Connect your TradingView alerts with OpenAlgo for automated trading.
+#### Strategy Management Module
+OpenAlgo's Strategy Management Module allows you to automate your trading strategies using webhooks. This enables seamless integration with any platform or custom system that can send HTTP requests. The Strategy class provides a simple interface to send signals that trigger orders based on your strategy configuration in OpenAlgo.
 
 ```python
 from openalgo import Strategy
+import requests
 
 # Initialize strategy client
 client = Strategy(
@@ -36,12 +37,34 @@ client = Strategy(
     webhook_id="your-webhook-id"        # Get this from OpenAlgo strategy section
 )
 
-# Example 1: Long/Short only mode (configured in OpenAlgo)
-client.strategyorder("RELIANCE", "BUY")
+try:
+    # Long entry (BOTH mode with position size)
+    response = client.strategyorder("RELIANCE", "BUY", 1)
+    print(f"Long entry successful: {response}")
 
-# Example 2: Both mode with position size
-client.strategyorder("ZOMATO", "SELL", 10)
+    # Short entry
+    response = client.strategyorder("ZOMATO", "SELL", 1)
+    print(f"Short entry successful: {response}")
+
+    # Close positions
+    response = client.strategyorder("RELIANCE", "SELL", 0)  # Close long
+    response = client.strategyorder("ZOMATO", "BUY", 0)     # Close short
+
+except requests.exceptions.RequestException as e:
+    print(f"Error sending order: {e}")
 ```
+
+Strategy Modes:
+- **LONG_ONLY**: Only processes BUY signals for long-only strategies
+- **SHORT_ONLY**: Only processes SELL signals for short-only strategies
+- **BOTH**: Processes both BUY and SELL signals with position sizing
+
+The Strategy Management Module can be integrated with:
+- Custom trading systems
+- Technical analysis platforms
+- Alert systems
+- Automated trading bots
+- Any system capable of making HTTP requests
 
 ### 2. Accounts API
 

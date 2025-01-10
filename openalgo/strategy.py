@@ -3,6 +3,7 @@ OpenAlgo Strategy Module for TradingView Integration
 """
 
 from typing import Optional
+import requests
 
 class Strategy:
     def __init__(self, host_url: str, webhook_id: str):
@@ -28,7 +29,7 @@ class Strategy:
 
     def strategyorder(self, symbol: str, action: str, position_size: Optional[int] = None) -> dict:
         """
-        Format the strategy order message for TradingView webhook.
+        Send a strategy order via webhook to OpenAlgo.
         The strategy mode (LONG_ONLY, SHORT_ONLY, BOTH) is configured in OpenAlgo.
         
         Args:
@@ -37,14 +38,24 @@ class Strategy:
             position_size (Optional[int]): Position size, required for BOTH mode
             
         Returns:
-            dict: Message format for TradingView webhook
+            dict: Response from the webhook request
+            
+        Raises:
+            requests.exceptions.RequestException: If the webhook request fails
         """
-        message = {
+        # Prepare message
+        post_message = {
             "symbol": symbol,
             "action": action.upper()
         }
         
         if position_size is not None:
-            message["position_size"] = str(position_size)
+            post_message["position_size"] = str(position_size)
             
-        return message
+        try:
+            response = requests.post(self.webhook_url, json=post_message)
+            response.raise_for_status()  # Raise exception for bad status codes
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Strategy order failed: {e}")
+            raise

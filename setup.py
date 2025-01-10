@@ -15,7 +15,7 @@ with open(os.path.join(os.path.dirname(__file__), "openalgo", "__init__.py"), en
 setup(
     name="openalgo",
     version=version,
-    description="Python library for algorithmic trading with OpenAlgo - Accounts, Orders, and Market Data APIs",
+    description="Python library for algorithmic trading with OpenAlgo - Accounts, Orders, Strategy Management and Market Data APIs",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="OpenAlgo",
