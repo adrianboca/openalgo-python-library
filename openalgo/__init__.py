@@ -6,12 +6,12 @@ OpenAlgo Python Library
 from .orders import OrderAPI
 from .data import DataAPI
 from .account import AccountAPI
+from .strategy import Strategy
 
 class api(OrderAPI, DataAPI, AccountAPI):
     """
-    Unified API class that combines order management, market data, and account functionality.
-    Inherits from OrderAPI, DataAPI, and AccountAPI.
+    OpenAlgo API client class
     """
     pass
 
-__version__ = "1.0.6"
+__version__ = "1.0.7"

@@ -2,7 +2,7 @@
 Example of using OpenAlgo strategy with client instance
 """
 
-from openalgo.strategy import Strategy
+from openalgo import Strategy
 
 # Initialize client with your OpenAlgo server URL and webhook ID
 client = Strategy(

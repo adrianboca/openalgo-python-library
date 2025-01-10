@@ -1,6 +1,6 @@
 # OpenAlgo Python Library
 
-A Python library for algorithmic trading using OpenAlgo's REST APIs. This library provides a comprehensive interface for order management, market data, and account operations.
+A Python library for algorithmic trading using OpenAlgo's REST APIs. This library provides a comprehensive interface for order management, market data, account operations, and strategy automation.
 
 ## Installation
 
@@ -22,7 +22,28 @@ client = api(
 
 ## API Categories
 
-### 1. Accounts API
+### 1. Strategy API
+
+#### TradingView Strategy Integration
+Connect your TradingView alerts with OpenAlgo for automated trading.
+
+```python
+from openalgo import Strategy
+
+# Initialize strategy client
+client = Strategy(
+    host_url="http://127.0.0.1:5000",  # Your OpenAlgo server URL
+    webhook_id="your-webhook-id"        # Get this from OpenAlgo strategy section
+)
+
+# Example 1: Long/Short only mode (configured in OpenAlgo)
+client.strategyorder("RELIANCE", "BUY")
+
+# Example 2: Both mode with position size
+client.strategyorder("ZOMATO", "SELL", 10)
+```
+
+### 2. Accounts API
 
 #### Funds
 Get funds and margin details of the trading account.
@@ -80,7 +101,7 @@ result = client.holdings()
 # - Total investment value and P&L
 ```
 
-### 2. Orders API
+### 3. Orders API
 
 #### Place Order
 Place a regular order.
@@ -201,7 +222,7 @@ Close all open positions.
 result = client.closeposition()
 ```
 
-### 3. Data API
+### 4. Data API
 
 #### Quotes
 Get real-time quotes for a symbol.
