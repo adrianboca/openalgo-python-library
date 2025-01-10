@@ -151,12 +151,9 @@ class DataAPI(BaseAPI):
                 # Set timestamp as index
                 df.set_index('timestamp', inplace=True)
                 
-                # Sort index to ensure chronological order
-                df.sort_index(inplace=True)
-                
-                # Add basic indicators
-                df['returns'] = df['close'].pct_change()
-                df['change%'] = df['returns'] * 100
+                # Sort index and remove duplicates
+                df = df.sort_index()
+                df = df[~df.index.duplicated(keep='first')]
                 
                 return df
             except Exception as e:

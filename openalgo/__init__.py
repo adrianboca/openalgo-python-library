@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 """
 OpenAlgo Python Library
@@ -15,4 +14,4 @@ class api(OrderAPI, DataAPI, AccountAPI):
     """
     pass
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
