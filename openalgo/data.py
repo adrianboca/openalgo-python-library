@@ -100,6 +100,26 @@ class DataAPI(BaseAPI):
         response = requests.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
+    def symbol(self, *, symbol, exchange):
+        """
+        Get symbol details from the API.
+
+        Parameters:
+        - symbol (str): Trading symbol. Required.
+        - exchange (str): Exchange code. Required.
+
+        Returns:
+        dict: JSON response containing symbol details like token, lot size, tick size, etc.
+        """
+        url = self.base_url + "symbol"
+        payload = {
+            "apikey": self.api_key,
+            "symbol": symbol,
+            "exchange": exchange
+        }
+        response = requests.post(url, json=payload, headers=self.headers)
+        return self._handle_response(response)
+        
     def history(self, *, symbol, exchange, interval, start_date, end_date):
         """
         Get historical data for a symbol in pandas DataFrame format.
@@ -165,23 +185,27 @@ class DataAPI(BaseAPI):
                 }
         return result
 
-    def interval(self):
+    def intervals(self):
         """
-        Get supported time intervals for historical data.
+        Get supported time intervals for historical data from the API.
 
         Returns:
         dict: JSON response containing supported intervals categorized by type
               (seconds, minutes, hours, days, weeks, months)
         """
-        # Since the interval endpoint is not available, return the supported intervals directly
-        return {
-            'status': 'success',
-            'data': {
-                'seconds': ['5s', '10s', '15s', '30s', '45s'],
-                'minutes': ['1m', '2m', '3m', '5m', '10m', '15m', '20m', '30m'],
-                'hours': ['1h', '2h', '4h'],
-                'days': ['D'],
-                'weeks': ['W'],
-                'months': ['M']
-            }
+        url = self.base_url + "intervals"
+        payload = {
+            "apikey": self.api_key
         }
+        response = requests.post(url, json=payload, headers=self.headers)
+        return self._handle_response(response)
+        
+    def interval(self):
+        """
+        Legacy method. Use intervals() instead.
+        Get supported time intervals for historical data.
+
+        Returns:
+        dict: JSON response containing supported intervals
+        """
+        return self.intervals()

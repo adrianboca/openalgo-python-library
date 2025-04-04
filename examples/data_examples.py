@@ -32,7 +32,7 @@ def print_response(title, response):
 
 # Initialize the API client
 client = api(
-    api_key="38f99d7d226cc0c3baa19dcacf0b1f049d2f68371da1dda2c97b1b63a3a9ca2e",
+    api_key="bcc95d6ebf12b41efd86ce0511a65e7acf5cc464efb271a648f7c1daf8740152",
     host="http://127.0.0.1:5000"
 )
 
@@ -74,10 +74,10 @@ def depth_example():
     except Exception as e:
         print(f"Error in depth_example: {e}")
 
-def interval_example():
+def intervals_example():
     """Example of getting supported intervals"""
     try:
-        response = client.interval()
+        response = client.intervals()
         print_response("Supported Intervals", response)
         
         if response.get('status') == 'success':
@@ -86,7 +86,35 @@ def interval_example():
                 print(f"\n{category.capitalize()}:")
                 print(", ".join(intervals))
     except Exception as e:
+        print(f"Error in intervals_example: {e}")
+
+def interval_example():
+    """Legacy example of getting supported intervals"""
+    try:
+        print("\nNOTE: interval() is a legacy method. It's recommended to use intervals() instead.")
+        response = client.interval()
+        print_response("Supported Intervals (Legacy Method)", response)
+    except Exception as e:
         print(f"Error in interval_example: {e}")
+
+def symbol_example():
+    """Example of getting symbol details"""
+    try:
+        # Get symbol details for RELIANCE
+        response = client.symbol(
+            symbol="RELIANCE",
+            exchange="NSE"
+        )
+        print_response("Symbol Details for RELIANCE", response)
+        
+        # Get symbol details for a futures contract
+        response = client.symbol(
+            symbol="NIFTY24APR25FUT",
+            exchange="NFO"
+        )
+        print_response("Symbol Details for NIFTY24APR25FUT", response)
+    except Exception as e:
+        print(f"Error in symbol_example: {e}")
 
 def history_example():
     """Example of getting historical data"""
@@ -140,6 +168,8 @@ if __name__ == "__main__":
     print("\nTesting Individual APIs:")
     quotes_example()
     depth_example()
-    interval_example()
+    intervals_example()  # New method
+    interval_example()   # Legacy method
+    symbol_example()     # New method
     history_example()
     
