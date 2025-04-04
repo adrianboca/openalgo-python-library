@@ -254,6 +254,7 @@ result = client.quotes(
     symbol="RELIANCE",
     exchange="NSE"
 )
+# Returns bid/ask, LTP, volume and other quote data
 ```
 
 #### Market Depth
@@ -263,6 +264,7 @@ result = client.depth(
     symbol="RELIANCE",
     exchange="NSE"
 )
+# Returns market depth with top 5 bids/asks
 ```
 
 #### Historical Data
@@ -271,16 +273,58 @@ Get historical price data.
 result = client.history(
     symbol="RELIANCE",
     exchange="NSE",
-    interval="5m",
+    interval="5m",  # Use intervals() to get supported intervals
     start_date="2024-01-01",
     end_date="2024-01-31"
 )
+# Returns pandas DataFrame with OHLC data
 ```
 
 #### Intervals
 Get supported time intervals for historical data.
 ```python
-result = client.interval()
+result = client.intervals()
+# Returns:
+{
+    "status": "success",
+    "data": {
+        "seconds": ["1s"],
+        "minutes": ["1m", "2m", "3m", "5m", "10m", "15m", "30m", "60m"],
+        "hours": [],
+        "days": ["D"],
+        "weeks": [],
+        "months": []
+    }
+}
+```
+
+> Note: The legacy `interval()` method is still available but will be deprecated in future versions.
+
+#### Symbol
+Get details for a specific trading symbol.
+```python
+result = client.symbol(
+    symbol="NIFTY24APR25FUT",
+    exchange="NFO"
+)
+# Returns:
+{
+    "status": "success",
+    "data": {
+        "brexchange": "NFO",
+        "brsymbol": "NIFTY24APR25FUT",
+        "exchange": "NFO",
+        "expiry": "24-APR-25",
+        "id": 39521,
+        "instrumenttype": "FUTIDX",
+        "lotsize": 75,
+        "name": "NIFTY",
+        "strike": -0.01,
+        "symbol": "NIFTY24APR25FUT",
+        "tick_size": 0.05,
+        "token": "54452"
+    }
+}
 ```
 
 ## Examples
