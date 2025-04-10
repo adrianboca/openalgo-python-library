@@ -19,7 +19,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="OpenAlgo",
-    author_email="support@openalgo.in",
+    author_email="rajandran@openalgo.in",
     url="https://docs.openalgo.in",
     packages=find_packages(),
     install_requires=[
@@ -39,6 +39,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Topic :: Office/Business :: Financial :: Investment",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
