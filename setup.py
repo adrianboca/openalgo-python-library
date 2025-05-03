@@ -23,7 +23,7 @@ setup(
     url="https://docs.openalgo.in",
     packages=find_packages(),
     install_requires=[
-        "requests>=2.25.0",
+        "httpx>=0.23.0",
         "pandas>=1.2.0"
     ],
     classifiers=[

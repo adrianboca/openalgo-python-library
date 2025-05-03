@@ -4,7 +4,7 @@ OpenAlgo REST API Documentation - Base API Class
     https://docs.openalgo.in
 """
 
-import requests
+import httpx
 
 class BaseAPI:
     """

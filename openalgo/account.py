@@ -4,7 +4,7 @@ OpenAlgo REST API Documentation - Account Methods
     https://docs.openalgo.in
 """
 
-import requests
+import httpx
 from .base import BaseAPI
 
 class AccountAPI(BaseAPI):
@@ -22,7 +22,7 @@ class AccountAPI(BaseAPI):
                     'message': f'HTTP {response.status_code}: {response.text}'
                 }
             return response.json()
-        except requests.exceptions.JSONDecodeError:
+        except httpx.HTTPError:
             return {
                 'status': 'error',
                 'message': 'Invalid JSON response from server',
@@ -55,7 +55,7 @@ class AccountAPI(BaseAPI):
         payload = {
             "apikey": self.api_key
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
     def orderbook(self):
@@ -97,7 +97,7 @@ class AccountAPI(BaseAPI):
         payload = {
             "apikey": self.api_key
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
     def tradebook(self):
@@ -128,7 +128,7 @@ class AccountAPI(BaseAPI):
         payload = {
             "apikey": self.api_key
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
     def positionbook(self):
@@ -155,7 +155,7 @@ class AccountAPI(BaseAPI):
         payload = {
             "apikey": self.api_key
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
     def holdings(self):
@@ -191,5 +191,5 @@ class AccountAPI(BaseAPI):
         payload = {
             "apikey": self.api_key
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)

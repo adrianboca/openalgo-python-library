@@ -4,7 +4,7 @@ OpenAlgo REST API Documentation - Data Methods
     https://docs.openalgo.in
 """
 
-import requests
+import httpx
 import pandas as pd
 from datetime import datetime
 import time
@@ -45,7 +45,7 @@ class DataAPI(BaseAPI):
                     }
                 return data
                 
-            except requests.exceptions.JSONDecodeError:
+            except httpx.HTTPError:
                 return {
                     'status': 'error',
                     'message': 'Invalid JSON response from server',
@@ -77,7 +77,7 @@ class DataAPI(BaseAPI):
             "symbol": symbol,
             "exchange": exchange
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
     def depth(self, *, symbol, exchange):
@@ -97,7 +97,7 @@ class DataAPI(BaseAPI):
             "symbol": symbol,
             "exchange": exchange
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
     def symbol(self, *, symbol, exchange):
@@ -117,7 +117,7 @@ class DataAPI(BaseAPI):
             "symbol": symbol,
             "exchange": exchange
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
         
     def history(self, *, symbol, exchange, interval, start_date, end_date):
@@ -148,7 +148,7 @@ class DataAPI(BaseAPI):
             "end_date": end_date
         }
 
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         result = self._handle_response(response)
         
         if result.get('status') == 'success' and 'data' in result:
@@ -197,7 +197,7 @@ class DataAPI(BaseAPI):
         payload = {
             "apikey": self.api_key
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
         
     def interval(self):

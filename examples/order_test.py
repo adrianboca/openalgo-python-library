@@ -9,7 +9,7 @@ import time
 def main():
     # Initialize API with test credentials
     client = api(
-        api_key="38f99d7d226cc0c3baa19dcacf0b1f049d2f68371da1dda2c97b1b63a3a9ca2e",
+        api_key="499128a9359e97ce3e4d2bfb6a32f41be45e504e8cdbb7f35fee23795c9a7b9d",
         host="http://127.0.0.1:5000"
     )
 

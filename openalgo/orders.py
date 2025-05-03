@@ -4,7 +4,7 @@ OpenAlgo REST API Documentation - Order Methods
     https://docs.openalgo.in
 """
 
-import requests
+import httpx
 from .base import BaseAPI
 
 class OrderAPI(BaseAPI):
@@ -22,7 +22,7 @@ class OrderAPI(BaseAPI):
                     'message': f'HTTP {response.status_code}: {response.text}'
                 }
             return response.json()
-        except requests.exceptions.JSONDecodeError:
+        except httpx.HTTPError:
             return {
                 'status': 'error',
                 'message': 'Invalid JSON response from server',
@@ -73,7 +73,7 @@ class OrderAPI(BaseAPI):
             if value is not None:
                 payload[key] = str(value)
         
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
     
     def placesmartorder(self, *, strategy="Python", symbol, action, exchange, price_type="MARKET", product="MIS", quantity=1, position_size, **kwargs):
@@ -117,7 +117,7 @@ class OrderAPI(BaseAPI):
             if value is not None:
                 payload[key] = str(value)
         
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
     def basketorder(self, *, strategy="Python", orders):
@@ -168,7 +168,7 @@ class OrderAPI(BaseAPI):
             "orders": processed_orders
         }
         
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
     def splitorder(self, *, strategy="Python", symbol, action, exchange, quantity, splitsize, price_type="MARKET", product="MIS", **kwargs):
@@ -224,7 +224,7 @@ class OrderAPI(BaseAPI):
             if value is not None:
                 payload[key] = str(value)
         
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
     def orderstatus(self, *, order_id, strategy="Python"):
@@ -260,7 +260,7 @@ class OrderAPI(BaseAPI):
             "strategy": strategy,
             "orderid": order_id
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
 
     def openposition(self, *, strategy="Python", symbol, exchange, product):
@@ -288,7 +288,7 @@ class OrderAPI(BaseAPI):
             "exchange": exchange,
             "product": product
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
     
     def modifyorder(self, *, order_id, strategy="Python", symbol, action, exchange, price_type="LIMIT", product, quantity, price, disclosed_quantity="0", trigger_price="0", **kwargs):
@@ -332,7 +332,7 @@ class OrderAPI(BaseAPI):
             if value is not None:
                 payload[key] = str(value)
         
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
     
     def cancelorder(self, *, order_id, strategy="Python"):
@@ -352,7 +352,7 @@ class OrderAPI(BaseAPI):
             "orderid": order_id,
             "strategy": strategy
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
     
     def closeposition(self, *, strategy="Python"):
@@ -370,7 +370,7 @@ class OrderAPI(BaseAPI):
             "apikey": self.api_key,
             "strategy": strategy
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)
     
     def cancelallorder(self, *, strategy="Python"):
@@ -388,5 +388,5 @@ class OrderAPI(BaseAPI):
             "apikey": self.api_key,
             "strategy": strategy
         }
-        response = requests.post(url, json=payload, headers=self.headers)
+        response = httpx.post(url, json=payload, headers=self.headers)
         return self._handle_response(response)

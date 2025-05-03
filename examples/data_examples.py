@@ -32,7 +32,7 @@ def print_response(title, response):
 
 # Initialize the API client
 client = api(
-    api_key="bcc95d6ebf12b41efd86ce0511a65e7acf5cc464efb271a648f7c1daf8740152",
+    api_key="499128a9359e97ce3e4d2bfb6a32f41be45e504e8cdbb7f35fee23795c9a7b9d",
     host="http://127.0.0.1:5000"
 )
 
@@ -109,10 +109,10 @@ def symbol_example():
         
         # Get symbol details for a futures contract
         response = client.symbol(
-            symbol="NIFTY24APR25FUT",
+            symbol="NIFTY29MAY25FUT",
             exchange="NFO"
         )
-        print_response("Symbol Details for NIFTY24APR25FUT", response)
+        print_response("Symbol Details for NIFTY29MAY25FUT", response)
     except Exception as e:
         print(f"Error in symbol_example: {e}")
 

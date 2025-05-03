@@ -3,7 +3,7 @@ OpenAlgo Strategy Module for TradingView Integration
 """
 
 from typing import Optional
-import requests
+import httpx
 
 class Strategy:
     def __init__(self, host_url: str, webhook_id: str):
@@ -53,9 +53,9 @@ class Strategy:
             post_message["position_size"] = str(position_size)
             
         try:
-            response = requests.post(self.webhook_url, json=post_message)
+            response = httpx.post(self.webhook_url, json=post_message)
             response.raise_for_status()  # Raise exception for bad status codes
             return response.json()
-        except requests.exceptions.RequestException as e:
+        except httpx.HTTPError as e:
             print(f"Strategy order failed: {e}")
             raise
