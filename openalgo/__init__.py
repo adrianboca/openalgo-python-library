@@ -7,8 +7,9 @@ from .orders import OrderAPI
 from .data import DataAPI
 from .account import AccountAPI
 from .strategy import Strategy
+from .feed import FeedAPI
 
-class api(OrderAPI, DataAPI, AccountAPI):
+class api(OrderAPI, DataAPI, AccountAPI, FeedAPI):
     """
     OpenAlgo API client class
     """
