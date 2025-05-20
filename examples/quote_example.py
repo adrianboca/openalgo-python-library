@@ -1,5 +1,5 @@
 """
-OpenAlgo WebSocket Feed Example
+OpenAlgo WebSocket Quote Feed Example
 """
 
 from openalgo import api
@@ -15,23 +15,23 @@ client = api(
 # MCX instruments for testing
 instruments_list = [
     {"exchange": "MCX", "symbol": "GOLDPETAL30MAY25FUT"},
-    {"exchange": "MCX", "symbol": "GOLD05JUN25FUT"}
+    {"exchange": "MCX", "symbol": "SILVER04JUL25FUT"}
 ]
 
 def on_data_received(data):
-    print("LTP Update:")
+    print("Quote Update:")
     print(data)
 
 # Connect and subscribe
 client.connect()
-client.subscribe_ltp(instruments_list, on_data_received=on_data_received)
+client.subscribe_quote(instruments_list, on_data_received=on_data_received)
 
-# Poll LTP data a few times
-for i in range(100):
+# Poll Quote data a few times
+for i in range(5):
     print(f"\nPoll {i+1}:")
-    print(client.get_ltp())
-    time.sleep(0.1)
+    print(client.get_quotes())
+    time.sleep(2)
 
 # Cleanup
-client.unsubscribe_ltp(instruments_list)
+client.unsubscribe_quote(instruments_list)
 client.disconnect()

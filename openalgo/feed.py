@@ -61,11 +61,12 @@ class FeedAPI(BaseAPI):
         
         # Data storage
         self.ltp_data = {}  # Structure: {'EXCHANGE:SYMBOL': {'price': price, 'timestamp': timestamp}}
-        self.quotes_data = {}
+        self.quotes_data = {}  # Structure: {'EXCHANGE:SYMBOL': {'open': open, 'high': high, 'low': low, 'close': close, 'ltp': ltp, 'timestamp': timestamp}}
         self.depth_data = {}
         
         # Callback registry
         self.ltp_callback = None
+        self.quote_callback = None
         self.quotes_callback = None
         self.depth_callback = None
 
@@ -233,10 +234,43 @@ class FeedAPI(BaseAPI):
                                 self.ltp_callback(clean_data)
                             except Exception as e:
                                 print(f"Error in LTP callback: {str(e)}")                 
-                    # Handle Quotes data (mode 2) - to be implemented
+                    # Handle Quotes data (mode 2)
                     elif mode == 2:
-                        pass
+                        with self.lock:
+                            # Extract quote data fields
+                            quote_data = {
+                                'open': market_data.get("open", 0),
+                                'high': market_data.get("high", 0),
+                                'low': market_data.get("low", 0),
+                                'close': market_data.get("close", 0),
+                                'ltp': market_data.get("ltp", 0),
+                                'timestamp': market_data.get("timestamp", int(time.time() * 1000))
+                            }
+                            
+                            # Store quote data with format 'EXCHANGE:SYMBOL'
+                            symbol_key = f"{exchange}:{symbol}"
+                            self.quotes_data[symbol_key] = quote_data
+                            
+                            # Print when quote data is received (same as test file)
+                            print(f"Quote {symbol_key}: Open: {quote_data['open']} | High: {quote_data['high']} | "
+                                  f"Low: {quote_data['low']} | Close: {quote_data['close']} | "
+                                  f"LTP: {quote_data['ltp']}")
                         
+                        # Invoke callback if set
+                        if self.quote_callback:
+                            try:
+                                # Create a clean market data update without redundant fields
+                                clean_data = {
+                                    'type': 'market_data',
+                                    'symbol': symbol,
+                                    'exchange': exchange,
+                                    'mode': mode,
+                                    'data': quote_data.copy()
+                                }
+                                # Pass the cleaned message to callback
+                                self.quote_callback(clean_data)
+                            except Exception as e:
+                                print(f"Error in Quote callback: {str(e)}")                 
                     # Handle Market Depth data (mode 3) - to be implemented
                     elif mode == 3:
                         pass
@@ -248,7 +282,7 @@ class FeedAPI(BaseAPI):
 
     def subscribe_ltp(self, instruments: List[Dict[str, Any]], on_data_received: Optional[Callable] = None) -> bool:
         """
-        Subscribe to LTP (Last Traded Price) updates for instruments.
+        Subscribe to LTP updates for instruments.
         
         Args:
             instruments: List of instrument dictionaries with keys:
@@ -364,6 +398,125 @@ class FeedAPI(BaseAPI):
                 return False
         
         return True
+        
+    def subscribe_quote(self, instruments: List[Dict[str, Any]], on_data_received: Optional[Callable] = None) -> bool:
+        """
+        Subscribe to Quote updates for instruments.
+        
+        Args:
+            instruments: List of instrument dictionaries with keys:
+                - exchange (str): Exchange code (e.g., 'NSE', 'BSE', 'NFO')
+                - symbol (str): Trading symbol
+                - exchange_token (str, optional): Exchange token for the instrument
+            on_data_received: Callback function for data updates
+            
+        Returns:
+            bool: True if subscription request sent successfully
+        """
+        if not self.connected:
+            print("Not connected to WebSocket server. Connect first.")
+            return False
+            
+        if not self.authenticated:
+            print("Not authenticated with WebSocket server")
+            return False
+                
+        # Set callback if provided
+        if on_data_received:
+            self.quote_callback = on_data_received
+        
+        # Subscribe to each instrument individually
+        for instrument in instruments:
+            exchange = instrument.get("exchange")
+            symbol = instrument.get("symbol")
+            exchange_token = instrument.get("exchange_token")
+            
+            # If only exchange_token is provided, we need to map it to a symbol
+            if not symbol and exchange_token:
+                symbol = exchange_token
+                
+            if not exchange or not symbol:
+                print(f"Invalid instrument: {instrument}")
+                continue
+                
+            # Use the same message format as for LTP but with mode 2 for Quote
+            subscription_msg = {
+                "action": "subscribe",
+                "symbol": symbol,
+                "exchange": exchange,
+                "mode": 2,  # 2 for Quote
+                "depth": 5  # Default depth level
+            }
+            
+            print(f"Subscribing to {exchange}:{symbol} Quote")
+            try:
+                self.ws.send(json.dumps(subscription_msg))
+                
+                # Small delay to ensure the message is processed separately
+                time.sleep(0.1)
+            except Exception as e:
+                print(f"Error subscribing to {exchange}:{symbol}: {e}")
+                return False
+        
+        return True
+    
+    def unsubscribe_quote(self, instruments: List[Dict[str, Any]]) -> bool:
+        """
+        Unsubscribe from Quote updates for instruments.
+        
+        Args:
+            instruments: List of instrument dictionaries with keys:
+                - exchange (str): Exchange code (e.g., 'NSE', 'BSE', 'NFO')
+                - symbol (str): Trading symbol
+                - exchange_token (str, optional): Exchange token for the instrument
+                
+        Returns:
+            bool: True if unsubscription successful, False otherwise
+        """
+        if not self.connected or not self.authenticated:
+            return False
+        
+        # Unsubscribe from each instrument individually
+        for instrument in instruments:
+            exchange = instrument.get("exchange")
+            symbol = instrument.get("symbol")
+            exchange_token = instrument.get("exchange_token")
+            
+            # If only exchange_token is provided, we need to map it to a symbol
+            if not symbol and exchange_token:
+                symbol = exchange_token
+                
+            if not exchange or not symbol:
+                print(f"Invalid instrument: {instrument}")
+                continue
+                
+            # Print information about unsubscription
+            print(f"Unsubscribing from {exchange}:{symbol}")
+            
+            # Use the same message format as for LTP but with mode 2 for Quote
+            unsubscribe_msg = {
+                "action": "unsubscribe",
+                "symbol": symbol,
+                "exchange": exchange,
+                "mode": 2  # 2 for Quote
+            }
+            
+            try:
+                self.ws.send(json.dumps(unsubscribe_msg))
+                
+                # Clean up the data
+                with self.lock:
+                    symbol_key = f"{exchange}:{symbol}"
+                    if symbol_key in self.quotes_data:
+                        del self.quotes_data[symbol_key]
+                
+                # Small delay to ensure the message is processed separately
+                time.sleep(0.1)
+            except Exception as e:
+                print(f"Error unsubscribing from {exchange}:{symbol}: {e}")
+                return False
+        
+        return True
 
     def get_ltp(self, exchange: str = None, symbol: str = None) -> Dict[str, Any]:
         """
@@ -405,6 +558,61 @@ class FeedAPI(BaseAPI):
                     result["ltp"][ex][sym] = {
                         "timestamp": data['timestamp'],
                         "ltp": data['price']
+                    }
+            
+            return result
+            
+    def get_quotes(self, exchange: str = None, symbol: str = None) -> Dict[str, Any]:
+        """
+        Get the latest Quote data in nested format.
+        
+        Args:
+            exchange (str, optional): Filter by exchange
+            symbol (str, optional): Filter by symbol (requires exchange to be specified)
+            
+        Returns:
+            dict: Dictionary with Quote data in nested format:
+                {"quote": {"EXCHANGE": {"SYMBOL": {
+                    "timestamp": timestamp,
+                    "open": open,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                    "ltp": ltp
+                }}}}
+        """
+        with self.lock:
+            # Create nested format response
+            result = {"quote": {}}
+            
+            # Process each item in the data structure
+            for symbol_key, data in self.quotes_data.items():
+                # Extract exchange and symbol from the key (format: "EXCHANGE:SYMBOL")
+                if ":" in symbol_key:
+                    parts = symbol_key.split(":")
+                    ex = parts[0]  # Exchange
+                    sym = parts[1]  # Symbol
+                    
+                    # Filter by exchange if specified
+                    if exchange and ex != exchange:
+                        continue
+                        
+                    # Filter by symbol if specified
+                    if symbol and sym != symbol:
+                        continue
+                    
+                    # Initialize exchange dict if not exists
+                    if ex not in result["quote"]:
+                        result["quote"][ex] = {}
+                    
+                    # Add data to the nested structure
+                    result["quote"][ex][sym] = {
+                        "timestamp": data['timestamp'],
+                        "open": data['open'],
+                        "high": data['high'],
+                        "low": data['low'],
+                        "close": data['close'],
+                        "ltp": data['ltp']
                     }
             
             return result
