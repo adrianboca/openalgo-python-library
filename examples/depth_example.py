@@ -26,10 +26,10 @@ client.connect()
 client.subscribe_depth(instruments_list, on_data_received=on_data_received)
 
 # Poll Market Depth data a few times
-for i in range(5):
+for i in range(100):
     print(f"\nPoll {i+1}:")
     print(client.get_depth())
-    time.sleep(2)
+    time.sleep(0.5)
 
 # Cleanup
 client.unsubscribe_depth(instruments_list)

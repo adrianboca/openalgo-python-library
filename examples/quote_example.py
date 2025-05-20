@@ -27,10 +27,10 @@ client.connect()
 client.subscribe_quote(instruments_list, on_data_received=on_data_received)
 
 # Poll Quote data a few times
-for i in range(5):
+for i in range(100):
     print(f"\nPoll {i+1}:")
     print(client.get_quotes())
-    time.sleep(2)
+    time.sleep(0.5)
 
 # Cleanup
 client.unsubscribe_quote(instruments_list)
