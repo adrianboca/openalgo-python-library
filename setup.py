@@ -1,30 +1,19 @@
 from setuptools import setup, find_packages
-import os
-
-# Read the contents of README file
-with open(os.path.join(os.path.dirname(__file__), "README.md"), encoding="utf-8") as f:
-    long_description = f.read()
-
-# Read version from __init__.py
-with open(os.path.join(os.path.dirname(__file__), "openalgo", "__init__.py"), encoding="utf-8") as f:
-    for line in f:
-        if line.startswith("__version__"):
-            version = line.split("=")[1].strip().strip('"').strip("'")
-            break
 
 setup(
     name="openalgo",
-    version=version,
-    description="Python library for algorithmic trading with OpenAlgo - Accounts, Orders, Strategy Management and Market Data APIs",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    author="OpenAlgo",
+    version="1.0.13",
+    author="Rajandran R",
     author_email="rajandran@openalgo.in",
-    url="https://docs.openalgo.in",
+    description="A Python library for interacting with OpenAlgo's trading APIs",
+    long_description=open('README.md').read(),
+    long_description_content_type="text/markdown",
+    url="https://openalgo.in",
     packages=find_packages(),
     install_requires=[
         "httpx>=0.23.0",
-        "pandas>=1.2.0"
+        "pandas>=1.2.0",
+        "websocket-client>=1.8.0"
     ],
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -48,6 +37,9 @@ setup(
         "trading",
         "algorithmic-trading",
         "finance",
+        "websocket",
+        "market-data",
+        "real-time", 
         "stock-market",
         "api-wrapper",
         "openalgo",

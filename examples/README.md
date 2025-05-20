@@ -45,6 +45,28 @@ python examples/data_examples.py
    - Get supported intervals
    - Combined market data example
 
+3. WebSocket Feed Examples:
+   - `feed_examples.py` - Demonstrates WebSocket LTP feed:
+     - Connect to WebSocket server
+     - Subscribe to LTP updates
+     - Real-time callbacks for LTP data
+     - Polling for latest LTP data
+     - Unsubscribe and disconnect
+
+   - `quote_example.py` - Demonstrates WebSocket quote feed:
+     - Connect to WebSocket server
+     - Subscribe to quote updates with OHLC data
+     - Real-time callbacks for quote data
+     - Polling for latest quote data
+     - Unsubscribe and disconnect
+
+   - `depth_example.py` - Demonstrates WebSocket market depth feed:
+     - Connect to WebSocket server
+     - Subscribe to market depth updates
+     - Real-time callbacks for order book data
+     - Polling for latest market depth data
+     - Unsubscribe and disconnect
+
 ## API Key
 
 The examples use the following API configuration:

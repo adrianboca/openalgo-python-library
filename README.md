@@ -245,10 +245,126 @@ Close all open positions.
 result = client.closeposition()
 ```
 
-### 4. Data API
+### 4. WebSocket Feed API
+
+The WebSocket Feed API provides real-time market data through WebSocket connections. The API supports three types of market data:
+
+#### LTP (Last Traded Price) Feed
+Get real-time LTP updates for multiple instruments:
+```python
+from openalgo import api
+import time
+
+# Initialize the client with explicit WebSocket URL
+client = api(
+    api_key="your_api_key",
+    host="http://127.0.0.1:5000",  # REST API host
+    ws_url="ws://127.0.0.1:8765"   # WebSocket server URL (can be different from REST API)
+)
+
+# Define instruments to subscribe to
+instruments = [
+    {"exchange": "MCX", "symbol": "GOLDPETAL30MAY25FUT"},
+    {"exchange": "MCX", "symbol": "GOLD05JUN25FUT"}
+]
+
+# Callback function for data updates
+def on_data_received(data):
+    print("LTP Update:")
+    print(data)
+
+# Connect and subscribe
+client.connect()
+client.subscribe_ltp(instruments, on_data_received=on_data_received)
+
+# Poll LTP data
+print(client.get_ltp())
+# Returns nested format:
+# {"ltp": {"MCX": {"GOLDPETAL30MAY25FUT": {"timestamp": 1747761583959, "ltp": 9529.0}}}}
+
+# Cleanup
+client.unsubscribe_ltp(instruments)
+client.disconnect()
+```
+
+#### Quote Feed
+Get real-time quote updates with OHLC data:
+```python
+from openalgo import api
+
+# Initialize the client
+client = api(
+    api_key="your_api_key",
+    host="http://127.0.0.1:5000",
+    ws_url="ws://127.0.0.1:8765"
+)
+
+# Define instruments
+instruments = [
+    {"exchange": "MCX", "symbol": "GOLDPETAL30MAY25FUT"}
+]
+
+# Connect and subscribe
+client.connect()
+client.subscribe_quote(instruments)
+
+# Poll quote data
+print(client.get_quotes())
+# Returns nested format:
+# {"quote": {"MCX": {"GOLDPETAL30MAY25FUT": {
+#   "timestamp": 1747767126517,
+#   "open": 9430.0,
+#   "high": 9544.0,
+#   "low": 9390.0,
+#   "close": 9437.0,
+#   "ltp": 9535.0
+# }}}}
+
+# Cleanup
+client.unsubscribe_quote(instruments)
+client.disconnect()
+```
+
+#### Market Depth Feed
+Get real-time market depth (order book) data:
+```python
+from openalgo import api
+
+# Initialize the client
+client = api(
+    api_key="your_api_key",
+    host="http://127.0.0.1:5000",
+    ws_url="ws://127.0.0.1:8765"
+)
+
+# Define instruments
+instruments = [
+    {"exchange": "MCX", "symbol": "GOLDPETAL30MAY25FUT"}
+]
+
+# Connect and subscribe
+client.connect()
+client.subscribe_depth(instruments)
+
+# Poll depth data
+print(client.get_depth())
+# Returns nested format with order book:
+# {"depth": {"MCX": {"GOLDPETAL30MAY25FUT": {
+#   "timestamp": 1747767126517,
+#   "ltp": 9535.0,
+#   "buyBook": {"1": {"price": "9533.0", "qty": "53332", "orders": "0"}, ...},
+#   "sellBook": {"1": {"price": "9535.0", "qty": "53332", "orders": "0"}, ...}
+# }}}}
+
+# Cleanup
+client.unsubscribe_depth(instruments)
+client.disconnect()
+```
+
+### 5. REST Data API
 
 #### Quotes
-Get real-time quotes for a symbol.
+Get real-time quotes for a symbol using REST API.
 ```python
 result = client.quotes(
     symbol="RELIANCE",
@@ -333,6 +449,9 @@ Check the examples directory for detailed usage:
 - account_test.py: Test account-related functions
 - order_test.py: Test order management functions
 - data_examples.py: Test market data functions
+- feed_examples.py: Test WebSocket LTP feeds
+- quote_example.py: Test WebSocket quote feeds
+- depth_example.py: Test WebSocket market depth feeds
 
 ## Publishing to PyPI
 
