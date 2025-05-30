@@ -8,6 +8,7 @@ from .data import DataAPI
 from .account import AccountAPI
 from .strategy import Strategy
 from .feed import FeedAPI
+from .indicators import ta
 
 class api(OrderAPI, DataAPI, AccountAPI, FeedAPI):
     """
@@ -15,4 +16,7 @@ class api(OrderAPI, DataAPI, AccountAPI, FeedAPI):
     """
     pass
 
-__version__ = "1.0.13"
+__version__ = "1.0.14"
+
+# Export main components for easy access
+__all__ = ['api', 'Strategy', 'ta']

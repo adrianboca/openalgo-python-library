@@ -88,12 +88,96 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# Numba cache (for JIT compilation)
+__pycache__/
+.numba_cache/
+*.numba_cache
+*/.numba_cache/
+
 # IDE-specific files
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS-specific files
 .DS_Store
 Thumbs.db
+*.tmp
+*.temp
+
+# Documentation build artifacts
+docs/_build/
+docs/build/
+.sphinx/
+.doctrees/
+
+# Backup files
+*.bak
+*.backup
+*.old
+*~
+
+# Log files
+*.log
+logs/
+
+# Temporary test files
+test_data/
+temp_test_*/
+*.test
+
+# Performance profiling
+*.prof
+*.profile
+.prof/
+
+# Local configuration files
+config.local.*
+settings.local.*
+.env.local
+.env.*.local
+
+# Data files (for examples/testing)
+*.csv
+*.json
+*.pkl
+*.pickle
+data/
+datasets/
+
+# Compiled extensions
+*.so
+*.dylib
+*.dll
+
+# MacOS specific
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Windows specific
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+
+# Linux specific
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Temporary directories
+tmp/
+temp/
+.tmp/
+.temp/
