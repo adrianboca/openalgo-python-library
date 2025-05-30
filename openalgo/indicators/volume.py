@@ -48,7 +48,7 @@ class OBV(BaseIndicator):
         return obv
     
     def calculate(self, close: Union[np.ndarray, pd.Series, list],
-                 volume: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+                 volume: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
         """
         Calculate On Balance Volume
         
@@ -61,16 +61,17 @@ class OBV(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of OBV values
+        Union[np.ndarray, pd.Series]
+            OBV values in the same format as input
         """
-        close = self.validate_input(close)
-        volume = self.validate_input(volume)
+        close_data, input_type, index = self.validate_input(close)
+        volume_data, _, _ = self.validate_input(volume)
         
         # Align arrays
-        close, volume = self.align_arrays(close, volume)
+        close_data, volume_data = self.align_arrays(close_data, volume_data)
         
-        return self._calculate_obv(close, volume)
+        result = self._calculate_obv(close_data, volume_data)
+        return self.format_output(result, input_type, index)
 
 
 class VWAP(BaseIndicator):
@@ -135,7 +136,7 @@ class VWAP(BaseIndicator):
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
                  volume: Union[np.ndarray, pd.Series, list],
-                 period: int = 0) -> np.ndarray:
+                 period: int = 0) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Volume Weighted Average Price
         
@@ -154,21 +155,22 @@ class VWAP(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of VWAP values
+        Union[np.ndarray, pd.Series]
+            VWAP values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
-        volume = self.validate_input(volume)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        volume_data, _, _ = self.validate_input(volume)
         
         # Align arrays
-        high, low, close, volume = self.align_arrays(high, low, close, volume)
+        high_data, low_data, close_data, volume_data = self.align_arrays(high_data, low_data, close_data, volume_data)
         
         if period > 0:
-            self.validate_period(period, len(close))
+            self.validate_period(period, len(close_data))
         
-        return self._calculate_vwap(high, low, close, volume, period)
+        result = self._calculate_vwap(high_data, low_data, close_data, volume_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class MFI(BaseIndicator):
@@ -235,7 +237,7 @@ class MFI(BaseIndicator):
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
                  volume: Union[np.ndarray, pd.Series, list],
-                 period: int = 14) -> np.ndarray:
+                 period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Money Flow Index
         
@@ -254,19 +256,20 @@ class MFI(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of MFI values (range: 0 to 100)
+        Union[np.ndarray, pd.Series]
+            MFI values (range: 0 to 100) in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
-        volume = self.validate_input(volume)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        volume_data, _, _ = self.validate_input(volume)
         
         # Align arrays
-        high, low, close, volume = self.align_arrays(high, low, close, volume)
-        self.validate_period(period, len(close))
+        high_data, low_data, close_data, volume_data = self.align_arrays(high_data, low_data, close_data, volume_data)
+        self.validate_period(period, len(close_data))
         
-        return self._calculate_mfi(high, low, close, volume, period)
+        result = self._calculate_mfi(high_data, low_data, close_data, volume_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class ADL(BaseIndicator):
@@ -311,7 +314,7 @@ class ADL(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 volume: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+                 volume: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Accumulation/Distribution Line
         
@@ -328,17 +331,18 @@ class ADL(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of ADL values
+        Union[np.ndarray, pd.Series]
+            ADL values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
-        volume = self.validate_input(volume)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        volume_data, _, _ = self.validate_input(volume)
         
-        high, low, close, volume = self.align_arrays(high, low, close, volume)
+        high_data, low_data, close_data, volume_data = self.align_arrays(high_data, low_data, close_data, volume_data)
         
-        return self._calculate_adl(high, low, close, volume)
+        result = self._calculate_adl(high_data, low_data, close_data, volume_data)
+        return self.format_output(result, input_type, index)
 
 
 class CMF(BaseIndicator):
@@ -388,7 +392,7 @@ class CMF(BaseIndicator):
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
                  volume: Union[np.ndarray, pd.Series, list],
-                 period: int = 20) -> np.ndarray:
+                 period: int = 20) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Chaikin Money Flow
         
@@ -407,18 +411,19 @@ class CMF(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of CMF values
+        Union[np.ndarray, pd.Series]
+            CMF values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
-        volume = self.validate_input(volume)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        volume_data, _, _ = self.validate_input(volume)
         
-        high, low, close, volume = self.align_arrays(high, low, close, volume)
-        self.validate_period(period, len(close))
+        high_data, low_data, close_data, volume_data = self.align_arrays(high_data, low_data, close_data, volume_data)
+        self.validate_period(period, len(close_data))
         
-        return self._calculate_cmf(high, low, close, volume, period)
+        result = self._calculate_cmf(high_data, low_data, close_data, volume_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class EMV(BaseIndicator):
@@ -462,7 +467,7 @@ class EMV(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  volume: Union[np.ndarray, pd.Series, list],
-                 scale: float = 1000000) -> np.ndarray:
+                 scale: float = 1000000) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Ease of Movement
         
@@ -479,16 +484,17 @@ class EMV(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of EMV values
+        Union[np.ndarray, pd.Series]
+            EMV values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        volume = self.validate_input(volume)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        volume_data, _, _ = self.validate_input(volume)
         
-        high, low, volume = self.align_arrays(high, low, volume)
+        high_data, low_data, volume_data = self.align_arrays(high_data, low_data, volume_data)
         
-        return self._calculate_emv(high, low, volume, scale)
+        result = self._calculate_emv(high_data, low_data, volume_data, scale)
+        return self.format_output(result, input_type, index)
 
 
 class FI(BaseIndicator):
@@ -518,7 +524,7 @@ class FI(BaseIndicator):
         return result
     
     def calculate(self, close: Union[np.ndarray, pd.Series, list],
-                 volume: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+                 volume: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Force Index
         
@@ -531,15 +537,16 @@ class FI(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Force Index values
+        Union[np.ndarray, pd.Series]
+            Force Index values in the same format as input
         """
-        close = self.validate_input(close)
-        volume = self.validate_input(volume)
+        close_data, input_type, index = self.validate_input(close)
+        volume_data, _, _ = self.validate_input(volume)
         
-        close, volume = self.align_arrays(close, volume)
+        close_data, volume_data = self.align_arrays(close_data, volume_data)
         
-        return self._calculate_fi(close, volume)
+        result = self._calculate_fi(close_data, volume_data)
+        return self.format_output(result, input_type, index)
 
 
 class NVI(BaseIndicator):
@@ -575,7 +582,7 @@ class NVI(BaseIndicator):
         return result
     
     def calculate(self, close: Union[np.ndarray, pd.Series, list],
-                 volume: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+                 volume: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Negative Volume Index
         
@@ -588,15 +595,16 @@ class NVI(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of NVI values
+        Union[np.ndarray, pd.Series]
+            NVI values in the same format as input
         """
-        close = self.validate_input(close)
-        volume = self.validate_input(volume)
+        close_data, input_type, index = self.validate_input(close)
+        volume_data, _, _ = self.validate_input(volume)
         
-        close, volume = self.align_arrays(close, volume)
+        close_data, volume_data = self.align_arrays(close_data, volume_data)
         
-        return self._calculate_nvi(close, volume)
+        result = self._calculate_nvi(close_data, volume_data)
+        return self.format_output(result, input_type, index)
 
 
 class PVI(BaseIndicator):
@@ -632,7 +640,7 @@ class PVI(BaseIndicator):
         return result
     
     def calculate(self, close: Union[np.ndarray, pd.Series, list],
-                 volume: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+                 volume: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Positive Volume Index
         
@@ -645,15 +653,16 @@ class PVI(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of PVI values
+        Union[np.ndarray, pd.Series]
+            PVI values in the same format as input
         """
-        close = self.validate_input(close)
-        volume = self.validate_input(volume)
+        close_data, input_type, index = self.validate_input(close)
+        volume_data, _, _ = self.validate_input(volume)
         
-        close, volume = self.align_arrays(close, volume)
+        close_data, volume_data = self.align_arrays(close_data, volume_data)
         
-        return self._calculate_pvi(close, volume)
+        result = self._calculate_pvi(close_data, volume_data)
+        return self.format_output(result, input_type, index)
 
 
 class VO(BaseIndicator):
@@ -681,7 +690,7 @@ class VO(BaseIndicator):
         return result
     
     def calculate(self, volume: Union[np.ndarray, pd.Series, list],
-                 fast_period: int = 5, slow_period: int = 10) -> np.ndarray:
+                 fast_period: int = 5, slow_period: int = 10) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Volume Oscillator
         
@@ -696,24 +705,24 @@ class VO(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Volume Oscillator values
+        Union[np.ndarray, pd.Series]
+            Volume Oscillator values in the same format as input
         """
-        volume = self.validate_input(volume)
+        validated_volume, input_type, index = self.validate_input(volume)
         
         # Calculate moving averages
-        fast_ma = self._calculate_sma(volume, fast_period)
-        slow_ma = self._calculate_sma(volume, slow_period)
+        fast_ma = self._calculate_sma(validated_volume, fast_period)
+        slow_ma = self._calculate_sma(validated_volume, slow_period)
         
         # Calculate Volume Oscillator
-        vo = np.empty_like(volume)
-        for i in range(len(volume)):
+        vo = np.empty_like(validated_volume)
+        for i in range(len(validated_volume)):
             if slow_ma[i] != 0:
                 vo[i] = ((fast_ma[i] - slow_ma[i]) / slow_ma[i]) * 100
             else:
                 vo[i] = 0
         
-        return vo
+        return self.format_output(vo, input_type, index)
 
 
 class VROC(BaseIndicator):
@@ -743,7 +752,7 @@ class VROC(BaseIndicator):
         
         return result
     
-    def calculate(self, volume: Union[np.ndarray, pd.Series, list], period: int = 25) -> np.ndarray:
+    def calculate(self, volume: Union[np.ndarray, pd.Series, list], period: int = 25) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Volume Rate of Change
         
@@ -756,10 +765,11 @@ class VROC(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of VROC values
+        Union[np.ndarray, pd.Series]
+            VROC values in the same format as input
         """
-        volume = self.validate_input(volume)
-        self.validate_period(period, len(volume))
+        validated_volume, input_type, index = self.validate_input(volume)
+        self.validate_period(period, len(validated_volume))
         
-        return self._calculate_vroc(volume, period)
+        result = self._calculate_vroc(validated_volume, period)
+        return self.format_output(result, input_type, index)

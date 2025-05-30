@@ -21,9 +21,9 @@ class BaseIndicator(ABC):
         pass
     
     @staticmethod
-    def validate_input(data: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+    def validate_input(data: Union[np.ndarray, pd.Series, list]) -> Tuple[np.ndarray, str, Optional[pd.Index]]:
         """
-        Validate and convert input data to numpy array
+        Validate and convert input data to numpy array while preserving type information
         
         Parameters:
         -----------
@@ -32,8 +32,10 @@ class BaseIndicator(ABC):
             
         Returns:
         --------
-        np.ndarray
-            Validated numpy array
+        Tuple[np.ndarray, str, Optional[pd.Index]]
+            (validated numpy array, input_type, index)
+            input_type: 'pandas', 'numpy', or 'list'
+            index: pandas index if input was pandas Series, None otherwise
             
         Raises:
         -------
@@ -43,17 +45,68 @@ class BaseIndicator(ABC):
             If input data is empty
         """
         if isinstance(data, pd.Series):
-            return data.values.astype(np.float64)
+            if len(data) == 0:
+                raise ValueError("Input data cannot be empty")
+            return data.values.astype(np.float64), 'pandas', data.index
         elif isinstance(data, list):
             if len(data) == 0:
                 raise ValueError("Input data cannot be empty")
-            return np.array(data, dtype=np.float64)
+            return np.array(data, dtype=np.float64), 'list', None
         elif isinstance(data, np.ndarray):
             if data.size == 0:
                 raise ValueError("Input data cannot be empty")
-            return data.astype(np.float64)
+            return data.astype(np.float64), 'numpy', None
         else:
             raise TypeError(f"Invalid input type: {type(data)}. Expected np.ndarray, pd.Series, or list")
+    
+    @staticmethod
+    def format_output(result: np.ndarray, input_type: str, index: Optional[pd.Index] = None) -> Union[np.ndarray, pd.Series]:
+        """
+        Format output to match input type
+        
+        Parameters:
+        -----------
+        result : np.ndarray
+            Result array to format
+        input_type : str
+            Type of original input ('pandas', 'numpy', or 'list')
+        index : Optional[pd.Index]
+            Original pandas index if input was pandas Series
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            Formatted result matching input type
+        """
+        if input_type == 'pandas':
+            return pd.Series(result, index=index)
+        else:
+            return result
+    
+    @staticmethod
+    def format_multiple_outputs(results: Tuple[np.ndarray, ...], input_type: str, 
+                               index: Optional[pd.Index] = None) -> Union[Tuple[np.ndarray, ...], Tuple[pd.Series, ...]]:
+        """
+        Format multiple outputs to match input type
+        
+        Parameters:
+        -----------
+        results : Tuple[np.ndarray, ...]
+            Result arrays to format
+        input_type : str
+            Type of original input ('pandas', 'numpy', or 'list')
+        index : Optional[pd.Index]
+            Original pandas index if input was pandas Series
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, ...], Tuple[pd.Series, ...]]
+            Formatted results matching input type
+        """
+        if input_type == 'pandas':
+            return tuple(pd.Series(result, index=index) for result in results)
+        else:
+            return results
     
     @staticmethod
     def validate_period(period: int, data_length: int) -> None:

@@ -43,7 +43,7 @@ class SMA(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Simple Moving Average
         
@@ -56,12 +56,13 @@ class SMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of SMA values
+        Union[np.ndarray, pd.Series]
+            SMA values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
-        return self._calculate_sma(data, period)
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        result = self._calculate_sma(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class EMA(BaseIndicator):
@@ -99,7 +100,7 @@ class EMA(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Exponential Moving Average
         
@@ -112,12 +113,13 @@ class EMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of EMA values
+        Union[np.ndarray, pd.Series]
+            EMA values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
-        return self._calculate_ema(data, period)
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        result = self._calculate_ema(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class WMA(BaseIndicator):
@@ -151,7 +153,7 @@ class WMA(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Weighted Moving Average
         
@@ -164,12 +166,13 @@ class WMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of WMA values
+        Union[np.ndarray, pd.Series]
+            WMA values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
-        return self._calculate_wma(data, period)
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        result = self._calculate_wma(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class DEMA(BaseIndicator):
@@ -185,7 +188,7 @@ class DEMA(BaseIndicator):
         super().__init__("DEMA")
         self._ema = EMA()
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Double Exponential Moving Average
         
@@ -198,20 +201,21 @@ class DEMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of DEMA values
+        Union[np.ndarray, pd.Series]
+            DEMA values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         # Calculate first EMA
-        ema1 = self._ema.calculate(data, period)
+        ema1 = self._ema.calculate(validated_data, period)
         
         # Calculate EMA of EMA
         ema2 = self._ema.calculate(ema1, period)
         
         # DEMA = 2 * EMA - EMA(EMA)
-        return 2 * ema1 - ema2
+        result = 2 * ema1 - ema2
+        return self.format_output(result, input_type, index)
 
 
 class TEMA(BaseIndicator):
@@ -227,7 +231,7 @@ class TEMA(BaseIndicator):
         super().__init__("TEMA")
         self._ema = EMA()
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Triple Exponential Moving Average
         
@@ -240,19 +244,20 @@ class TEMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of TEMA values
+        Union[np.ndarray, pd.Series]
+            TEMA values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         # Calculate EMAs
-        ema1 = self._ema.calculate(data, period)
+        ema1 = self._ema.calculate(validated_data, period)
         ema2 = self._ema.calculate(ema1, period)
         ema3 = self._ema.calculate(ema2, period)
         
         # TEMA = 3 * EMA - 3 * EMA(EMA) + EMA(EMA(EMA))
-        return 3 * ema1 - 3 * ema2 + ema3
+        result = 3 * ema1 - 3 * ema2 + ema3
+        return self.format_output(result, input_type, index)
 
 
 @jit(nopython=True)
@@ -363,7 +368,7 @@ class Supertrend(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 period: int = 10, multiplier: float = 3.0) -> Tuple[np.ndarray, np.ndarray]:
+                 period: int = 10, multiplier: float = 3.0) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
         Calculate Supertrend Indicator
         
@@ -382,22 +387,23 @@ class Supertrend(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray]
-            (supertrend values, direction values)
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (supertrend values, direction values) in the same format as input
             Direction: 1 for uptrend, -1 for downtrend
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
         # Align arrays
-        high, low, close = self.align_arrays(high, low, close)
-        self.validate_period(period, len(close))
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        self.validate_period(period, len(close_data))
         
         if multiplier <= 0:
             raise ValueError(f"Multiplier must be positive, got {multiplier}")
         
-        return self._calculate_supertrend(high, low, close, period, multiplier)
+        supertrend_result, direction_result = self._calculate_supertrend(high_data, low_data, close_data, period, multiplier)
+        return self.format_multiple_outputs((supertrend_result, direction_result), input_type, index)
 
 
 class Ichimoku(BaseIndicator):
@@ -468,7 +474,7 @@ class Ichimoku(BaseIndicator):
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
                  tenkan_period: int = 9, kijun_period: int = 26,
-                 senkou_b_period: int = 52, displacement: int = 26) -> Tuple[np.ndarray, ...]:
+                 senkou_b_period: int = 52, displacement: int = 26) -> Union[Tuple[np.ndarray, ...], Tuple[pd.Series, ...]]:
         """
         Calculate Ichimoku Cloud
         
@@ -491,15 +497,15 @@ class Ichimoku(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
-            (tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b, chikou_span)
+        Union[Tuple[np.ndarray, ...], Tuple[pd.Series, ...]]
+            (tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b, chikou_span) in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
         # Align arrays
-        high, low, close = self.align_arrays(high, low, close)
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         
         # Validate periods
         for period, name in [(tenkan_period, "tenkan_period"), 
@@ -508,8 +514,9 @@ class Ichimoku(BaseIndicator):
             if period <= 0:
                 raise ValueError(f"{name} must be positive, got {period}")
         
-        return self._calculate_ichimoku(high, low, close, tenkan_period, 
-                                       kijun_period, senkou_b_period, displacement)
+        results = self._calculate_ichimoku(high_data, low_data, close_data, tenkan_period, 
+                                          kijun_period, senkou_b_period, displacement)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class HMA(BaseIndicator):
@@ -525,7 +532,7 @@ class HMA(BaseIndicator):
         super().__init__("HMA")
         self._wma = WMA()
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Hull Moving Average
         
@@ -538,26 +545,26 @@ class HMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of HMA values
+        Union[np.ndarray, pd.Series]
+            HMA values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         # Step 1: Calculate WMA(n/2)
-        wma_half = self._wma.calculate(data, period // 2)
+        wma_half = self._wma.calculate(validated_data, period // 2)
         
         # Step 2: Calculate WMA(n)
-        wma_full = self._wma.calculate(data, period)
+        wma_full = self._wma.calculate(validated_data, period)
         
         # Step 3: Calculate 2 * WMA(n/2) - WMA(n)
         diff = 2 * wma_half - wma_full
         
         # Step 4: Calculate HMA = WMA(diff, sqrt(n))
         sqrt_period = int(np.sqrt(period))
-        hma = self._wma.calculate(diff, sqrt_period)
+        result = self._wma.calculate(diff, sqrt_period)
         
-        return hma
+        return self.format_output(result, input_type, index)
 
 
 class VWMA(BaseIndicator):
@@ -597,7 +604,7 @@ class VWMA(BaseIndicator):
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
                  volume: Union[np.ndarray, pd.Series, list],
-                 period: int) -> np.ndarray:
+                 period: int) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Volume Weighted Moving Average
         
@@ -612,15 +619,16 @@ class VWMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of VWMA values
+        Union[np.ndarray, pd.Series]
+            VWMA values in the same format as input
         """
-        data = self.validate_input(data)
-        volume = self.validate_input(volume)
-        data, volume = self.align_arrays(data, volume)
-        self.validate_period(period, len(data))
+        data_validated, input_type, index = self.validate_input(data)
+        volume_validated, _, _ = self.validate_input(volume)
+        data_validated, volume_validated = self.align_arrays(data_validated, volume_validated)
+        self.validate_period(period, len(data_validated))
         
-        return self._calculate_vwma(data, volume, period)
+        result = self._calculate_vwma(data_validated, volume_validated, period)
+        return self.format_output(result, input_type, index)
 
 
 class ALMA(BaseIndicator):
@@ -665,7 +673,7 @@ class ALMA(BaseIndicator):
         return result
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 period: int = 21, offset: float = 0.85, sigma: float = 6.0) -> np.ndarray:
+                 period: int = 21, offset: float = 0.85, sigma: float = 6.0) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Arnaud Legoux Moving Average
         
@@ -682,18 +690,19 @@ class ALMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of ALMA values
+        Union[np.ndarray, pd.Series]
+            ALMA values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         if not 0 <= offset <= 1:
             raise ValueError(f"Offset must be between 0 and 1, got {offset}")
         if sigma <= 0:
             raise ValueError(f"Sigma must be positive, got {sigma}")
         
-        return self._calculate_alma(data, period, offset, sigma)
+        result = self._calculate_alma(validated_data, period, offset, sigma)
+        return self.format_output(result, input_type, index)
 
 
 class KAMA(BaseIndicator):
@@ -743,7 +752,7 @@ class KAMA(BaseIndicator):
         return result
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 period: int = 10, fast_period: int = 2, slow_period: int = 30) -> np.ndarray:
+                 period: int = 10, fast_period: int = 2, slow_period: int = 30) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Kaufman's Adaptive Moving Average
         
@@ -760,11 +769,11 @@ class KAMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of KAMA values
+        Union[np.ndarray, pd.Series]
+            KAMA values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         if fast_period <= 0 or slow_period <= 0:
             raise ValueError("Fast and slow periods must be positive")
@@ -775,7 +784,8 @@ class KAMA(BaseIndicator):
         fast_sc = 2.0 / (fast_period + 1)
         slow_sc = 2.0 / (slow_period + 1)
         
-        return self._calculate_kama(data, period, fast_sc, slow_sc)
+        result = self._calculate_kama(validated_data, period, fast_sc, slow_sc)
+        return self.format_output(result, input_type, index)
 
 
 class ZLEMA(BaseIndicator):
@@ -792,7 +802,7 @@ class ZLEMA(BaseIndicator):
         super().__init__("ZLEMA")
         self._ema = EMA()
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Zero Lag Exponential Moving Average
         
@@ -805,24 +815,25 @@ class ZLEMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of ZLEMA values
+        Union[np.ndarray, pd.Series]
+            ZLEMA values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         # Calculate lag
         lag = (period - 1) // 2
         
         # Create lagged data
-        adjusted_data = np.empty_like(data)
-        adjusted_data[:lag] = data[:lag]
+        adjusted_data = np.empty_like(validated_data)
+        adjusted_data[:lag] = validated_data[:lag]
         
-        for i in range(lag, len(data)):
-            adjusted_data[i] = 2 * data[i] - data[i - lag]
+        for i in range(lag, len(validated_data)):
+            adjusted_data[i] = 2 * validated_data[i] - validated_data[i - lag]
         
         # Calculate EMA of adjusted data
-        return self._ema.calculate(adjusted_data, period)
+        result = self._ema.calculate(adjusted_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class T3(BaseIndicator):
@@ -861,7 +872,7 @@ class T3(BaseIndicator):
         return gd
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 period: int = 21, v_factor: float = 0.7) -> np.ndarray:
+                 period: int = 21, v_factor: float = 0.7) -> Union[np.ndarray, pd.Series]:
         """
         Calculate T3 Moving Average
         
@@ -876,18 +887,18 @@ class T3(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of T3 values
+        Union[np.ndarray, pd.Series]
+            T3 values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         # Apply GD three times
-        gd1 = self._calculate_gd(data, period, v_factor)
+        gd1 = self._calculate_gd(validated_data, period, v_factor)
         gd2 = self._calculate_gd(gd1, period, v_factor)
-        t3 = self._calculate_gd(gd2, period, v_factor)
+        result = self._calculate_gd(gd2, period, v_factor)
         
-        return t3
+        return self.format_output(result, input_type, index)
 
 
 class FRAMA(BaseIndicator):
@@ -947,7 +958,7 @@ class FRAMA(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 16) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 16) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Fractal Adaptive Moving Average
         
@@ -960,13 +971,14 @@ class FRAMA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of FRAMA values
+        Union[np.ndarray, pd.Series]
+            FRAMA values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         if period < 4:
             raise ValueError("Period must be at least 4 for FRAMA calculation")
         
-        return self._calculate_frama(data, period)
+        result = self._calculate_frama(validated_data, period)
+        return self.format_output(result, input_type, index)

@@ -53,7 +53,7 @@ class LINEARREG(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Linear Regression
         
@@ -66,13 +66,14 @@ class LINEARREG(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Linear Regression values
+        Union[np.ndarray, pd.Series]
+            Linear Regression values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
-        return self._calculate_linearreg(data, period)
+        result = self._calculate_linearreg(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class LINEARREG_SLOPE(BaseIndicator):
@@ -109,7 +110,7 @@ class LINEARREG_SLOPE(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Linear Regression Slope
         
@@ -122,13 +123,14 @@ class LINEARREG_SLOPE(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of slope values
+        Union[np.ndarray, pd.Series]
+            Slope values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
-        return self._calculate_slope(data, period)
+        result = self._calculate_slope(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class CORREL(BaseIndicator):
@@ -174,7 +176,7 @@ class CORREL(BaseIndicator):
     
     def calculate(self, data1: Union[np.ndarray, pd.Series, list],
                  data2: Union[np.ndarray, pd.Series, list],
-                 period: int = 20) -> np.ndarray:
+                 period: int = 20) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Pearson Correlation Coefficient
         
@@ -189,16 +191,17 @@ class CORREL(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of correlation values
+        Union[np.ndarray, pd.Series]
+            Correlation values in the same format as input
         """
-        data1 = self.validate_input(data1)
-        data2 = self.validate_input(data2)
+        data1_validated, input_type, index = self.validate_input(data1)
+        data2_validated, _, _ = self.validate_input(data2)
         
-        data1, data2 = self.align_arrays(data1, data2)
-        self.validate_period(period, len(data1))
+        data1_validated, data2_validated = self.align_arrays(data1_validated, data2_validated)
+        self.validate_period(period, len(data1_validated))
         
-        return self._calculate_correl(data1, data2, period)
+        result = self._calculate_correl(data1_validated, data2_validated, period)
+        return self.format_output(result, input_type, index)
 
 
 class BETA(BaseIndicator):
@@ -242,7 +245,7 @@ class BETA(BaseIndicator):
     
     def calculate(self, asset: Union[np.ndarray, pd.Series, list],
                  market: Union[np.ndarray, pd.Series, list],
-                 period: int = 252) -> np.ndarray:
+                 period: int = 252) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Beta Coefficient
         
@@ -257,16 +260,17 @@ class BETA(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of beta values
+        Union[np.ndarray, pd.Series]
+            Beta values in the same format as input
         """
-        asset = self.validate_input(asset)
-        market = self.validate_input(market)
+        asset_data, input_type, index = self.validate_input(asset)
+        market_data, _, _ = self.validate_input(market)
         
-        asset, market = self.align_arrays(asset, market)
-        self.validate_period(period + 1, len(asset))  # +1 for diff
+        asset_data, market_data = self.align_arrays(asset_data, market_data)
+        self.validate_period(period + 1, len(asset_data))  # +1 for diff
         
-        return self._calculate_beta(asset, market, period)
+        result = self._calculate_beta(asset_data, market_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class VAR(BaseIndicator):
@@ -297,7 +301,7 @@ class VAR(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Variance
         
@@ -310,13 +314,14 @@ class VAR(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of variance values
+        Union[np.ndarray, pd.Series]
+            Variance values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
-        return self._calculate_var(data, period)
+        result = self._calculate_var(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class TSF(BaseIndicator):
@@ -357,7 +362,7 @@ class TSF(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Time Series Forecast
         
@@ -370,13 +375,14 @@ class TSF(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of forecast values
+        Union[np.ndarray, pd.Series]
+            Time Series Forecast values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
-        return self._calculate_tsf(data, period)
+        result = self._calculate_tsf(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class MEDIAN(BaseIndicator):
@@ -413,7 +419,7 @@ class MEDIAN(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Rolling Median
         
@@ -426,13 +432,14 @@ class MEDIAN(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of median values
+        Union[np.ndarray, pd.Series]
+            Median values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
-        return self._calculate_median(data, period)
+        result = self._calculate_median(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class MODE(BaseIndicator):
@@ -446,7 +453,7 @@ class MODE(BaseIndicator):
         super().__init__("Mode")
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list], 
-                 period: int = 20, bins: int = 10) -> np.ndarray:
+                 period: int = 20, bins: int = 10) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Rolling Mode
         
@@ -461,17 +468,17 @@ class MODE(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of mode values
+        Union[np.ndarray, pd.Series]
+            Mode values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
-        n = len(data)
+        n = len(validated_data)
         result = np.full(n, np.nan)
         
         for i in range(period - 1, n):
-            window = data[i - period + 1:i + 1]
+            window = validated_data[i - period + 1:i + 1]
             
             # Discretize the data into bins
             min_val = np.min(window)
@@ -493,4 +500,4 @@ class MODE(BaseIndicator):
             else:
                 result[i] = window[0]
         
-        return result
+        return self.format_output(result, input_type, index)

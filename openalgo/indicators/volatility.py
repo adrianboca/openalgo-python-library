@@ -61,7 +61,7 @@ class ATR(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 period: int = 14) -> np.ndarray:
+                 period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Average True Range
         
@@ -78,18 +78,19 @@ class ATR(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of ATR values
+        Union[np.ndarray, pd.Series]
+            ATR values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
         # Align arrays
-        high, low, close = self.align_arrays(high, low, close)
-        self.validate_period(period, len(close))
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        self.validate_period(period, len(close_data))
         
-        return self._calculate_atr(high, low, close, period)
+        result = self._calculate_atr(high_data, low_data, close_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class BollingerBands(BaseIndicator):
@@ -138,7 +139,7 @@ class BollingerBands(BaseIndicator):
         return upper, middle, lower
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 period: int = 20, std_dev: float = 2.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                 period: int = 20, std_dev: float = 2.0) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
         """
         Calculate Bollinger Bands
         
@@ -153,16 +154,17 @@ class BollingerBands(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray, np.ndarray]
-            (upper_band, middle_band, lower_band)
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]
+            (upper_band, middle_band, lower_band) in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         if std_dev <= 0:
             raise ValueError(f"Standard deviation multiplier must be positive, got {std_dev}")
         
-        return self._calculate_bollinger_bands(data, period, std_dev)
+        results = self._calculate_bollinger_bands(validated_data, period, std_dev)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 # Helper function for EMA calculation (outside class for Numba)
@@ -254,7 +256,7 @@ class KeltnerChannel(BaseIndicator):
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
                  ema_period: int = 20, atr_period: int = 10, 
-                 multiplier: float = 2.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                 multiplier: float = 2.0) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
         """
         Calculate Keltner Channel
         
@@ -275,23 +277,24 @@ class KeltnerChannel(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray, np.ndarray]
-            (upper_channel, middle_line, lower_channel)
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]
+            (upper_channel, middle_line, lower_channel) in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
         # Align arrays
-        high, low, close = self.align_arrays(high, low, close)
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         
         # Validate parameters
-        self.validate_period(ema_period, len(close))
-        self.validate_period(atr_period, len(close))
+        self.validate_period(ema_period, len(close_data))
+        self.validate_period(atr_period, len(close_data))
         if multiplier <= 0:
             raise ValueError(f"Multiplier must be positive, got {multiplier}")
         
-        return self._calculate_keltner_channel(high, low, close, ema_period, atr_period, multiplier)
+        results = self._calculate_keltner_channel(high_data, low_data, close_data, ema_period, atr_period, multiplier)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class DonchianChannel(BaseIndicator):
@@ -334,7 +337,7 @@ class DonchianChannel(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 period: int = 20) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                 period: int = 20) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
         """
         Calculate Donchian Channel
         
@@ -349,17 +352,18 @@ class DonchianChannel(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray, np.ndarray]
-            (upper_channel, middle_line, lower_channel)
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]
+            (upper_channel, middle_line, lower_channel) in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
         
         # Align arrays
-        high, low = self.align_arrays(high, low)
-        self.validate_period(period, len(high))
+        high_data, low_data = self.align_arrays(high_data, low_data)
+        self.validate_period(period, len(high_data))
         
-        return self._calculate_donchian_channel(high, low, period)
+        results = self._calculate_donchian_channel(high_data, low_data, period)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class ChaikinVolatility(BaseIndicator):
@@ -390,7 +394,7 @@ class ChaikinVolatility(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 ema_period: int = 10, roc_period: int = 10) -> np.ndarray:
+                 ema_period: int = 10, roc_period: int = 10) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Chaikin Volatility
         
@@ -407,16 +411,16 @@ class ChaikinVolatility(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Chaikin Volatility values
+        Union[np.ndarray, pd.Series]
+            Chaikin Volatility values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
         
-        high, low = self.align_arrays(high, low)
+        high_data, low_data = self.align_arrays(high_data, low_data)
         
         # Calculate high-low range
-        hl_range = high - low
+        hl_range = high_data - low_data
         
         # Calculate EMA of the range
         ema_range = self._calculate_ema(hl_range, ema_period)
@@ -427,7 +431,7 @@ class ChaikinVolatility(BaseIndicator):
             if ema_range[i - roc_period] != 0:
                 cv[i] = ((ema_range[i] - ema_range[i - roc_period]) / ema_range[i - roc_period]) * 100
         
-        return cv
+        return self.format_output(cv, input_type, index)
 
 
 class NATR(BaseIndicator):
@@ -446,7 +450,7 @@ class NATR(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 period: int = 14) -> np.ndarray:
+                 period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Normalized Average True Range
         
@@ -463,10 +467,10 @@ class NATR(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of NATR values
+        Union[np.ndarray, pd.Series]
+            NATR values in the same format as input
         """
-        close = self.validate_input(close)
+        close_data, input_type, index = self.validate_input(close)
         
         # Calculate ATR
         atr = self._atr.calculate(high, low, close, period)
@@ -474,12 +478,12 @@ class NATR(BaseIndicator):
         # Calculate NATR
         natr = np.empty_like(atr)
         for i in range(len(atr)):
-            if close[i] != 0:
-                natr[i] = (atr[i] / close[i]) * 100
+            if close_data[i] != 0:
+                natr[i] = (atr[i] / close_data[i]) * 100
             else:
                 natr[i] = 0
         
-        return natr
+        return self.format_output(natr, input_type, index)
 
 
 class RVI(BaseIndicator):
@@ -557,7 +561,7 @@ class RVI(BaseIndicator):
         return result
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 stdev_period: int = 10, rsi_period: int = 14) -> np.ndarray:
+                 stdev_period: int = 10, rsi_period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Relative Volatility Index
         
@@ -572,18 +576,18 @@ class RVI(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of RVI values
+        Union[np.ndarray, pd.Series]
+            RVI values in the same format as input
         """
-        data = self.validate_input(data)
+        validated_data, input_type, index = self.validate_input(data)
         
         # Calculate rolling standard deviation
-        stdev = self._calculate_stdev(data, stdev_period)
+        stdev = self._calculate_stdev(validated_data, stdev_period)
         
         # Calculate RSI on standard deviation
-        rvi = self._calculate_rsi_on_stdev(stdev, rsi_period)
+        result = self._calculate_rsi_on_stdev(stdev, rsi_period)
         
-        return rvi
+        return self.format_output(result, input_type, index)
 
 
 class ULTOSC(BaseIndicator):
@@ -643,7 +647,7 @@ class ULTOSC(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 period1: int = 7, period2: int = 14, period3: int = 28) -> np.ndarray:
+                 period1: int = 7, period2: int = 14, period3: int = 28) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Ultimate Oscillator
         
@@ -664,16 +668,17 @@ class ULTOSC(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Ultimate Oscillator values
+        Union[np.ndarray, pd.Series]
+            Ultimate Oscillator values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
-        high, low, close = self.align_arrays(high, low, close)
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         
-        return self._calculate_ultosc(high, low, close, period1, period2, period3)
+        result = self._calculate_ultosc(high_data, low_data, close_data, period1, period2, period3)
+        return self.format_output(result, input_type, index)
 
 
 class STDDEV(BaseIndicator):
@@ -708,7 +713,7 @@ class STDDEV(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Standard Deviation
         
@@ -721,13 +726,14 @@ class STDDEV(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of standard deviation values
+        Union[np.ndarray, pd.Series]
+            Standard deviation values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
-        return self._calculate_stddev(data, period)
+        result = self._calculate_stddev(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class TRANGE(BaseIndicator):
@@ -763,7 +769,7 @@ class TRANGE(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 close: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+                 close: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
         """
         Calculate True Range
         
@@ -778,16 +784,17 @@ class TRANGE(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of True Range values
+        Union[np.ndarray, pd.Series]
+            True Range values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
-        high, low, close = self.align_arrays(high, low, close)
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         
-        return self._calculate_trange(high, low, close)
+        result = self._calculate_trange(high_data, low_data, close_data)
+        return self.format_output(result, input_type, index)
 
 
 class MASS(BaseIndicator):
@@ -831,7 +838,7 @@ class MASS(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 fast_period: int = 9, slow_period: int = 25) -> np.ndarray:
+                 fast_period: int = 9, slow_period: int = 25) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Mass Index
         
@@ -848,16 +855,16 @@ class MASS(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Mass Index values
+        Union[np.ndarray, pd.Series]
+            Mass Index values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
         
-        high, low = self.align_arrays(high, low)
+        high_data, low_data = self.align_arrays(high_data, low_data)
         
         # Calculate high-low range
-        hl_range = high - low
+        hl_range = high_data - low_data
         
         # Calculate first EMA
         ema1 = self._calculate_ema(hl_range, fast_period)
@@ -874,6 +881,6 @@ class MASS(BaseIndicator):
                 ratio[i] = 1.0
         
         # Calculate SMA of ratio
-        mass_index = self._calculate_sma(ratio, slow_period)
+        result = self._calculate_sma(ratio, slow_period)
         
-        return mass_index
+        return self.format_output(result, input_type, index)

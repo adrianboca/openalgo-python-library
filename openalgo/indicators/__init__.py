@@ -134,7 +134,7 @@ class TechnicalAnalysis:
     
     # =================== TREND INDICATORS ===================
     
-    def sma(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
+    def sma(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
         Simple Moving Average
         
@@ -147,12 +147,12 @@ class TechnicalAnalysis:
             
         Returns:
         --------
-        np.ndarray
-            Array of SMA values
+        Union[np.ndarray, pd.Series]
+            SMA values in the same format as input
         """
         return self._sma.calculate(data, period)
     
-    def ema(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
+    def ema(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
         Exponential Moving Average
         
@@ -165,8 +165,8 @@ class TechnicalAnalysis:
             
         Returns:
         --------
-        np.ndarray
-            Array of EMA values
+        Union[np.ndarray, pd.Series]
+            EMA values in the same format as input
         """
         return self._ema.calculate(data, period)
     
@@ -227,7 +227,7 @@ class TechnicalAnalysis:
     def supertrend(self, high: Union[np.ndarray, pd.Series, list],
                    low: Union[np.ndarray, pd.Series, list],
                    close: Union[np.ndarray, pd.Series, list],
-                   period: int = 10, multiplier: float = 3.0) -> Tuple[np.ndarray, np.ndarray]:
+                   period: int = 10, multiplier: float = 3.0) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
         Supertrend Indicator
         
@@ -246,8 +246,8 @@ class TechnicalAnalysis:
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray]
-            (supertrend values, direction values)
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (supertrend values, direction values) in the same format as input
         """
         return self._supertrend.calculate(high, low, close, period, multiplier)
     

@@ -61,10 +61,16 @@ All indicators accept the following input types:
 
 ### Output Format
 
-All indicators return `numpy.ndarray` with:
+All indicators **preserve the input format**:
+- **NumPy arrays** → Return `numpy.ndarray`
+- **Pandas Series** → Return `pandas.Series` (with preserved index)
+- **Python lists** → Return `numpy.ndarray`
+
+Key characteristics:
 - Same length as input data
 - `NaN` values for periods where calculation is not possible
 - Float64 precision for accurate calculations
+- Pandas Series maintain their original index for time-series alignment
 
 ### Example: Preparing Data
 
@@ -73,17 +79,23 @@ import pandas as pd
 import numpy as np
 from openalgo import ta
 
-# From pandas DataFrame
+# From pandas DataFrame - returns pandas Series
 df = pd.read_csv('stock_data.csv')
-sma = ta.sma(df['close'], 20)
+sma = ta.sma(df['close'], 20)  # Returns pandas.Series with same index
+print(type(sma))  # <class 'pandas.core.series.Series'>
 
-# From numpy array
+# From numpy array - returns numpy array
 close_prices = np.array([100, 102, 101, 103, 104])
-ema = ta.ema(close_prices, 10)
+ema = ta.ema(close_prices, 10)  # Returns numpy.ndarray
+print(type(ema))  # <class 'numpy.ndarray'>
 
-# From Python list
+# From Python list - returns numpy array
 prices = [100, 102, 101, 103, 104]
-rsi = ta.rsi(prices, 14)
+rsi = ta.rsi(prices, 14)  # Returns numpy.ndarray
+print(type(rsi))  # <class 'numpy.ndarray'>
+
+# Pandas Series maintains index alignment
+df['sma_20'] = ta.sma(df['close'], 20)  # Perfect alignment!
 ```
 
 ---
@@ -102,16 +114,26 @@ Trend indicators help identify the direction and strength of market trends.
 - `data`: Price data (typically closing prices)
 - `period`: Number of periods for calculation
 
-**Returns**: Array of SMA values
+**Returns**: SMA values in the same format as input
 
 ```python
-# Example
+# Example with NumPy array
 close = np.array([100, 102, 101, 103, 104, 102, 105, 106, 104, 107])
-sma_5 = ta.sma(close, 5)
+sma_5 = ta.sma(close, 5)  # Returns numpy.ndarray
 
 print(f"Close prices: {close}")
 print(f"SMA(5): {sma_5}")
 # Output: SMA(5): [nan nan nan nan 102.0 102.4 103.0 104.0 104.4 104.8]
+
+# Example with Pandas Series
+import pandas as pd
+dates = pd.date_range('2024-01-01', periods=10)
+close_series = pd.Series(close, index=dates)
+sma_5_series = ta.sma(close_series, 5)  # Returns pandas.Series with same index
+
+print(f"SMA as pandas Series:")
+print(sma_5_series.tail())
+# Maintains date index alignment!
 ```
 
 ### 2. Exponential Moving Average (EMA)

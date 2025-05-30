@@ -86,7 +86,7 @@ class RSI(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Relative Strength Index
         
@@ -99,12 +99,13 @@ class RSI(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of RSI values
+        Union[np.ndarray, pd.Series]
+            RSI values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
-        return self._calculate_rsi(data, period)
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        result = self._calculate_rsi(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class MACD(BaseIndicator):
@@ -146,7 +147,7 @@ class MACD(BaseIndicator):
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list], 
                  fast_period: int = 12, slow_period: int = 26, 
-                 signal_period: int = 9) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                 signal_period: int = 9) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
         """
         Calculate MACD
         
@@ -163,10 +164,10 @@ class MACD(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray, np.ndarray]
-            (macd_line, signal_line, histogram)
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]
+            (macd_line, signal_line, histogram) in the same format as input
         """
-        data = self.validate_input(data)
+        validated_data, input_type, index = self.validate_input(data)
         
         # Validate periods
         if fast_period <= 0 or slow_period <= 0 or signal_period <= 0:
@@ -174,7 +175,8 @@ class MACD(BaseIndicator):
         if fast_period >= slow_period:
             raise ValueError("Fast period must be less than slow period")
         
-        return self._calculate_macd(data, fast_period, slow_period, signal_period)
+        results = self._calculate_macd(validated_data, fast_period, slow_period, signal_period)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class Stochastic(BaseIndicator):
@@ -228,7 +230,7 @@ class Stochastic(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 k_period: int = 14, d_period: int = 3) -> Tuple[np.ndarray, np.ndarray]:
+                 k_period: int = 14, d_period: int = 3) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
         Calculate Stochastic Oscillator
         
@@ -247,22 +249,23 @@ class Stochastic(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray]
-            (k_percent, d_percent)
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (k_percent, d_percent) in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
         # Align arrays
-        high, low, close = self.align_arrays(high, low, close)
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         
         # Validate periods
-        self.validate_period(k_period, len(close))
+        self.validate_period(k_period, len(close_data))
         if d_period <= 0:
             raise ValueError(f"d_period must be positive, got {d_period}")
         
-        return self._calculate_stochastic(high, low, close, k_period, d_period)
+        results = self._calculate_stochastic(high_data, low_data, close_data, k_period, d_period)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class CCI(BaseIndicator):
@@ -312,7 +315,7 @@ class CCI(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 period: int = 20) -> np.ndarray:
+                 period: int = 20) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Commodity Channel Index
         
@@ -329,18 +332,19 @@ class CCI(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of CCI values
+        Union[np.ndarray, pd.Series]
+            CCI values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
         # Align arrays
-        high, low, close = self.align_arrays(high, low, close)
-        self.validate_period(period, len(close))
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        self.validate_period(period, len(close_data))
         
-        return self._calculate_cci(high, low, close, period)
+        result = self._calculate_cci(high_data, low_data, close_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class WilliamsR(BaseIndicator):
@@ -378,7 +382,7 @@ class WilliamsR(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 period: int = 14) -> np.ndarray:
+                 period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Williams %R
         
@@ -395,15 +399,16 @@ class WilliamsR(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Williams %R values (range: 0 to -100)
+        Union[np.ndarray, pd.Series]
+            Williams %R values (range: 0 to -100) in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
         # Align arrays
-        high, low, close = self.align_arrays(high, low, close)
-        self.validate_period(period, len(close))
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        self.validate_period(period, len(close_data))
         
-        return self._calculate_williams_r(high, low, close, period)
+        result = self._calculate_williams_r(high_data, low_data, close_data, period)
+        return self.format_output(result, input_type, index)

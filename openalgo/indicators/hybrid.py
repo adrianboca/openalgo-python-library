@@ -106,7 +106,7 @@ class ADX(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 period: int = 14) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                 period: int = 14) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
         """
         Calculate Average Directional Index
         
@@ -123,17 +123,18 @@ class ADX(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray, np.ndarray]
-            (+DI, -DI, ADX)
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]
+            (+DI, -DI, ADX) in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
-        high, low, close = self.align_arrays(high, low, close)
-        self.validate_period(period, len(close))
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        self.validate_period(period, len(close_data))
         
-        return self._calculate_adx(high, low, close, period)
+        results = self._calculate_adx(high_data, low_data, close_data, period)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class Aroon(BaseIndicator):
@@ -184,7 +185,7 @@ class Aroon(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 period: int = 25) -> Tuple[np.ndarray, np.ndarray]:
+                 period: int = 25) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
         Calculate Aroon Indicator
         
@@ -199,16 +200,17 @@ class Aroon(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray]
-            (aroon_up, aroon_down)
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (aroon_up, aroon_down) in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
         
-        high, low = self.align_arrays(high, low)
-        self.validate_period(period, len(high))
+        high_data, low_data = self.align_arrays(high_data, low_data)
+        self.validate_period(period, len(high_data))
         
-        return self._calculate_aroon(high, low, period)
+        results = self._calculate_aroon(high_data, low_data, period)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class PivotPoints(BaseIndicator):
@@ -261,7 +263,7 @@ class PivotPoints(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 close: Union[np.ndarray, pd.Series, list]) -> Tuple[np.ndarray, ...]:
+                 close: Union[np.ndarray, pd.Series, list]) -> Union[Tuple[np.ndarray, ...], Tuple[pd.Series, ...]]:
         """
         Calculate Pivot Points
         
@@ -276,16 +278,17 @@ class PivotPoints(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, ...]
-            (pivot, r1, s1, r2, s2, r3, s3)
+        Union[Tuple[np.ndarray, ...], Tuple[pd.Series, ...]]
+            (pivot, r1, s1, r2, s2, r3, s3) in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
-        high, low, close = self.align_arrays(high, low, close)
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         
-        return self._calculate_pivot_points(high, low, close)
+        results = self._calculate_pivot_points(high_data, low_data, close_data)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class SAR(BaseIndicator):
@@ -367,7 +370,7 @@ class SAR(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 acceleration: float = 0.02, maximum: float = 0.2) -> Tuple[np.ndarray, np.ndarray]:
+                 acceleration: float = 0.02, maximum: float = 0.2) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
         Calculate Parabolic SAR
         
@@ -384,20 +387,21 @@ class SAR(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray]
-            (sar_values, trend_direction)
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (sar_values, trend_direction) in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
         
-        high, low = self.align_arrays(high, low)
+        high_data, low_data = self.align_arrays(high_data, low_data)
         
         if acceleration <= 0 or maximum <= 0:
             raise ValueError("Acceleration and maximum must be positive")
         if acceleration > maximum:
             raise ValueError("Acceleration cannot be greater than maximum")
         
-        return self._calculate_sar(high, low, acceleration, maximum)
+        results = self._calculate_sar(high_data, low_data, acceleration, maximum)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class DMI(BaseIndicator):
@@ -414,7 +418,7 @@ class DMI(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 period: int = 14) -> Tuple[np.ndarray, np.ndarray]:
+                 period: int = 14) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
         Calculate Directional Movement Index
         
@@ -431,11 +435,15 @@ class DMI(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray]
-            (+DI, -DI)
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (+DI, -DI) in the same format as input
         """
-        di_plus, di_minus, _ = self._adx.calculate(high, low, close, period)
-        return di_plus, di_minus
+        results = self._adx.calculate(high, low, close, period)
+        # Return only the first two components (+DI, -DI), excluding ADX
+        if isinstance(results[0], np.ndarray):
+            return results[0], results[1]
+        else:
+            return results[0], results[1]
 
 
 class PSAR(BaseIndicator):
@@ -449,14 +457,18 @@ class PSAR(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 acceleration: float = 0.02, maximum: float = 0.2) -> np.ndarray:
+                 acceleration: float = 0.02, maximum: float = 0.2) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Parabolic SAR
         
-        Returns only the SAR values (not the trend direction)
+        Returns only the SAR values (not the trend direction) in the same format as input
         """
-        sar_values, _ = self._sar.calculate(high, low, acceleration, maximum)
-        return sar_values
+        results = self._sar.calculate(high, low, acceleration, maximum)
+        # Return only the first component (SAR values), excluding trend direction
+        if isinstance(results[0], np.ndarray):
+            return results[0]
+        else:
+            return results[0]
 
 
 class HT_TRENDLINE(BaseIndicator):
@@ -488,7 +500,7 @@ class HT_TRENDLINE(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Hilbert Transform Trendline
         
@@ -499,8 +511,9 @@ class HT_TRENDLINE(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of trendline values
+        Union[np.ndarray, pd.Series]
+            Trendline values in the same format as input
         """
-        data = self.validate_input(data)
-        return self._calculate_ht_trendline(data)
+        validated_data, input_type, index = self.validate_input(data)
+        result = self._calculate_ht_trendline(validated_data)
+        return self.format_output(result, input_type, index)

@@ -37,7 +37,7 @@ class ROC(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 12) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 12) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Rate of Change
         
@@ -50,12 +50,13 @@ class ROC(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of ROC values
+        Union[np.ndarray, pd.Series]
+            ROC values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
-        return self._calculate_roc(data, period)
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        result = self._calculate_roc(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class CMO(BaseIndicator):
@@ -99,7 +100,7 @@ class CMO(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Chande Momentum Oscillator
         
@@ -112,12 +113,13 @@ class CMO(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of CMO values
+        Union[np.ndarray, pd.Series]
+            CMO values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period + 1, len(data))  # +1 for diff
-        return self._calculate_cmo(data, period)
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period + 1, len(validated_data))  # +1 for diff
+        result = self._calculate_cmo(validated_data, period)
+        return self.format_output(result, input_type, index)
 
 
 class TRIX(BaseIndicator):
@@ -147,7 +149,7 @@ class TRIX(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate TRIX
         
@@ -160,14 +162,14 @@ class TRIX(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of TRIX values
+        Union[np.ndarray, pd.Series]
+            TRIX values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         # Calculate triple EMA
-        ema1 = self._calculate_ema(data, period)
+        ema1 = self._calculate_ema(validated_data, period)
         ema2 = self._calculate_ema(ema1, period)
         ema3 = self._calculate_ema(ema2, period)
         
@@ -177,7 +179,7 @@ class TRIX(BaseIndicator):
             if ema3[i - 1] != 0:
                 trix[i] = ((ema3[i] - ema3[i - 1]) / ema3[i - 1]) * 10000  # Multiply by 10000 for better scale
         
-        return trix
+        return self.format_output(trix, input_type, index)
 
 
 class UO(BaseIndicator):
@@ -242,7 +244,7 @@ class UO(BaseIndicator):
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 period1: int = 7, period2: int = 14, period3: int = 28) -> np.ndarray:
+                 period1: int = 7, period2: int = 14, period3: int = 28) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Ultimate Oscillator
         
@@ -263,16 +265,17 @@ class UO(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Ultimate Oscillator values
+        Union[np.ndarray, pd.Series]
+            Ultimate Oscillator values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
-        close = self.validate_input(close)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
         
-        high, low, close = self.align_arrays(high, low, close)
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         
-        return self._calculate_uo(high, low, close, period1, period2, period3)
+        result = self._calculate_uo(high_data, low_data, close_data, period1, period2, period3)
+        return self.format_output(result, input_type, index)
 
 
 class AO(BaseIndicator):
@@ -302,7 +305,7 @@ class AO(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 fast_period: int = 5, slow_period: int = 34) -> np.ndarray:
+                 fast_period: int = 5, slow_period: int = 34) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Awesome Oscillator
         
@@ -319,23 +322,24 @@ class AO(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Awesome Oscillator values
+        Union[np.ndarray, pd.Series]
+            Awesome Oscillator values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
         
-        high, low = self.align_arrays(high, low)
+        high_data, low_data = self.align_arrays(high_data, low_data)
         
         # Calculate median price
-        median_price = (high + low) / 2
+        median_price = (high_data + low_data) / 2
         
         # Calculate SMAs
         fast_sma = self._calculate_sma(median_price, fast_period)
         slow_sma = self._calculate_sma(median_price, slow_period)
         
         # Calculate AO
-        return fast_sma - slow_sma
+        result = fast_sma - slow_sma
+        return self.format_output(result, input_type, index)
 
 
 class AC(BaseIndicator):
@@ -366,7 +370,7 @@ class AC(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 period: int = 5) -> np.ndarray:
+                 period: int = 5) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Accelerator Oscillator
         
@@ -381,9 +385,12 @@ class AC(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Accelerator Oscillator values
+        Union[np.ndarray, pd.Series]
+            Accelerator Oscillator values in the same format as input
         """
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        
         # Calculate Awesome Oscillator
         ao = self._ao.calculate(high, low)
         
@@ -391,7 +398,8 @@ class AC(BaseIndicator):
         ao_sma = self._calculate_sma(ao, period)
         
         # Calculate AC
-        return ao - ao_sma
+        result = ao - ao_sma
+        return self.format_output(result, input_type, index)
 
 
 class PPO(BaseIndicator):
@@ -423,7 +431,7 @@ class PPO(BaseIndicator):
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
                  fast_period: int = 12, slow_period: int = 26,
-                 signal_period: int = 9) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                 signal_period: int = 9) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
         """
         Calculate Percentage Price Oscillator
         
@@ -440,18 +448,18 @@ class PPO(BaseIndicator):
             
         Returns:
         --------
-        Tuple[np.ndarray, np.ndarray, np.ndarray]
-            (ppo_line, signal_line, histogram)
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]
+            (ppo_line, signal_line, histogram) in the same format as input
         """
-        data = self.validate_input(data)
+        validated_data, input_type, index = self.validate_input(data)
         
         # Calculate EMAs
-        fast_ema = self._calculate_ema(data, fast_period)
-        slow_ema = self._calculate_ema(data, slow_period)
+        fast_ema = self._calculate_ema(validated_data, fast_period)
+        slow_ema = self._calculate_ema(validated_data, slow_period)
         
         # Calculate PPO line
-        ppo_line = np.empty_like(data)
-        for i in range(len(data)):
+        ppo_line = np.empty_like(validated_data)
+        for i in range(len(validated_data)):
             if slow_ema[i] != 0:
                 ppo_line[i] = ((fast_ema[i] - slow_ema[i]) / slow_ema[i]) * 100
             else:
@@ -463,7 +471,8 @@ class PPO(BaseIndicator):
         # Calculate histogram
         histogram = ppo_line - signal_line
         
-        return ppo_line, signal_line, histogram
+        results = (ppo_line, signal_line, histogram)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class PO(BaseIndicator):
@@ -506,7 +515,7 @@ class PO(BaseIndicator):
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
                  fast_period: int = 10, slow_period: int = 20,
-                 ma_type: str = "SMA") -> np.ndarray:
+                 ma_type: str = "SMA") -> Union[np.ndarray, pd.Series]:
         """
         Calculate Price Oscillator
         
@@ -523,21 +532,22 @@ class PO(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Price Oscillator values
+        Union[np.ndarray, pd.Series]
+            Price Oscillator values in the same format as input
         """
-        data = self.validate_input(data)
+        validated_data, input_type, index = self.validate_input(data)
         
         if ma_type.upper() == "SMA":
-            fast_ma = self._calculate_sma(data, fast_period)
-            slow_ma = self._calculate_sma(data, slow_period)
+            fast_ma = self._calculate_sma(validated_data, fast_period)
+            slow_ma = self._calculate_sma(validated_data, slow_period)
         elif ma_type.upper() == "EMA":
-            fast_ma = self._calculate_ema(data, fast_period)
-            slow_ma = self._calculate_ema(data, slow_period)
+            fast_ma = self._calculate_ema(validated_data, fast_period)
+            slow_ma = self._calculate_ema(validated_data, slow_period)
         else:
             raise ValueError(f"Unsupported MA type: {ma_type}")
         
-        return fast_ma - slow_ma
+        result = fast_ma - slow_ma
+        return self.format_output(result, input_type, index)
 
 
 class DPO(BaseIndicator):
@@ -565,7 +575,7 @@ class DPO(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> np.ndarray:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Detrended Price Oscillator
         
@@ -578,24 +588,24 @@ class DPO(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of DPO values
+        Union[np.ndarray, pd.Series]
+            DPO values in the same format as input
         """
-        data = self.validate_input(data)
-        self.validate_period(period, len(data))
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
         
         # Calculate SMA
-        sma = self._calculate_sma(data, period)
+        sma = self._calculate_sma(validated_data, period)
         
         # Calculate DPO
-        dpo = np.full_like(data, np.nan)
+        dpo = np.full_like(validated_data, np.nan)
         offset = period // 2 + 1
         
-        for i in range(offset, len(data)):
+        for i in range(offset, len(validated_data)):
             if not np.isnan(sma[i]):
-                dpo[i] = data[i - offset] - sma[i]
+                dpo[i] = validated_data[i - offset] - sma[i]
         
-        return dpo
+        return self.format_output(dpo, input_type, index)
 
 
 class AROONOSC(BaseIndicator):
@@ -642,7 +652,7 @@ class AROONOSC(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 period: int = 25) -> np.ndarray:
+                 period: int = 25) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Aroon Oscillator
         
@@ -657,13 +667,14 @@ class AROONOSC(BaseIndicator):
             
         Returns:
         --------
-        np.ndarray
-            Array of Aroon Oscillator values
+        Union[np.ndarray, pd.Series]
+            Aroon Oscillator values in the same format as input
         """
-        high = self.validate_input(high)
-        low = self.validate_input(low)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
         
-        high, low = self.align_arrays(high, low)
-        self.validate_period(period, len(high))
+        high_data, low_data = self.align_arrays(high_data, low_data)
+        self.validate_period(period, len(high_data))
         
-        return self._calculate_aroon_osc(high, low, period)
+        result = self._calculate_aroon_osc(high_data, low_data, period)
+        return self.format_output(result, input_type, index)
