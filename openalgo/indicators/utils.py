@@ -220,14 +220,20 @@ def ema(data: np.ndarray, period: int) -> np.ndarray:
     n = len(data)
     result = np.empty(n)
     alpha = 2.0 / (period + 1)
-    
-    # Initialize with first value
-    result[0] = data[0]
-    
-    # Calculate EMA
-    for i in range(1, n):
+
+    # Seed initial values with NaN until enough data is available
+    result[:period-1] = np.nan
+
+    # Calculate initial SMA as the first EMA value
+    sum_val = 0.0
+    for i in range(period):
+        sum_val += data[i]
+    result[period-1] = sum_val / period
+
+    # Calculate EMA for remaining values
+    for i in range(period, n):
         result[i] = alpha * data[i] + (1 - alpha) * result[i-1]
-    
+
     return result
 
 

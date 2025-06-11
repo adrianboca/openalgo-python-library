@@ -175,11 +175,17 @@ def _calculate_ema_keltner(data: np.ndarray, period: int) -> np.ndarray:
     ema = np.empty(n)
     alpha = 2.0 / (period + 1)
     
-    # Initialize with first value
-    ema[0] = data[0]
+    # Seed initial NaNs until period-1
+    ema[:period-1] = np.nan
     
-    # Calculate EMA
-    for i in range(1, n):
+    # Initial SMA
+    sum_val = 0.0
+    for i in range(period):
+        sum_val += data[i]
+    ema[period-1] = sum_val / period
+    
+    # Exponential smoothing thereafter
+    for i in range(period, n):
         ema[i] = alpha * data[i] + (1 - alpha) * ema[i-1]
     
     return ema
@@ -386,8 +392,15 @@ class ChaikinVolatility(BaseIndicator):
         result = np.empty(n)
         alpha = 2.0 / (period + 1)
         
-        result[0] = data[0]
-        for i in range(1, n):
+        result[:period-1] = np.nan
+        
+        # Initial SMA seed
+        sma = 0.0
+        for i in range(period):
+            sma += data[i]
+        result[period-1] = sma / period
+        
+        for i in range(period, n):
             result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
         
         return result
@@ -818,8 +831,14 @@ class MASS(BaseIndicator):
         result = np.empty(n)
         alpha = 2.0 / (period + 1)
         
-        result[0] = data[0]
-        for i in range(1, n):
+        result[:period-1] = np.nan
+        
+        sma_seed = 0.0
+        for i in range(period):
+            sma_seed += data[i]
+        result[period-1] = sma_seed / period
+        
+        for i in range(period, n):
             result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
         
         return result

@@ -31,10 +31,9 @@ class OBV(BaseIndicator):
     def _calculate_obv(close: np.ndarray, volume: np.ndarray) -> np.ndarray:
         """Numba optimized OBV calculation"""
         n = len(close)
-        obv = np.empty(n)
-        
-        # Initialize first value
-        obv[0] = volume[0]
+        # Initialize with NaNs then seed baseline at 0 to align with TA-Lib
+        obv = np.full(n, np.nan)
+        obv[0] = 0.0
         
         # Calculate OBV
         for i in range(1, n):
@@ -292,22 +291,18 @@ class ADL(BaseIndicator):
                       volume: np.ndarray) -> np.ndarray:
         """Numba optimized ADL calculation"""
         n = len(close)
-        result = np.empty(n)
+        result = np.full(n, np.nan)
         
-        result[0] = 0  # Start with 0
+        result[0] = 0.0  # Seed baseline at 0 as per common definition
         
-        for i in range(n):
+        for i in range(1, n):
             if high[i] != low[i]:
                 mfm = ((close[i] - low[i]) - (high[i] - close[i])) / (high[i] - low[i])
             else:
-                mfm = 0
+                mfm = 0.0
             
             mfv = mfm * volume[i]
-            
-            if i == 0:
-                result[i] = mfv
-            else:
-                result[i] = result[i - 1] + mfv
+            result[i] = result[i - 1] + mfv
         
         return result
     

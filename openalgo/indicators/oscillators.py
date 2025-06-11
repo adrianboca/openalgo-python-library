@@ -177,7 +177,7 @@ class TRIX(BaseIndicator):
         trix = np.full_like(ema3, np.nan)
         for i in range(1, len(ema3)):
             if ema3[i - 1] != 0:
-                trix[i] = ((ema3[i] - ema3[i - 1]) / ema3[i - 1]) * 10000  # Multiply by 10000 for better scale
+                trix[i] = ((ema3[i] - ema3[i - 1]) / ema3[i - 1]) * 100  # ×100 to express percentage change
         
         return self.format_output(trix, input_type, index)
 
@@ -392,14 +392,20 @@ class AC(BaseIndicator):
         low_data, _, _ = self.validate_input(low)
         
         # Calculate Awesome Oscillator
-        ao = self._ao.calculate(high, low)
+        ao_raw = self._ao.calculate(high, low)
+        
+        # Ensure numpy array for numba SMA calculation
+        if isinstance(ao_raw, pd.Series):
+            ao_data = ao_raw.values.astype(np.float64)
+        else:
+            ao_data = ao_raw.astype(np.float64)
         
         # Calculate SMA of AO
-        ao_sma = self._calculate_sma(ao, period)
+        ao_sma = self._calculate_sma(ao_data, period)
         
-        # Calculate AC
-        result = ao - ao_sma
-        return self.format_output(result, input_type, index)
+        # Calculate AC (array diff)
+        result_arr = ao_data - ao_sma
+        return self.format_output(result_arr, input_type, index)
 
 
 class PPO(BaseIndicator):

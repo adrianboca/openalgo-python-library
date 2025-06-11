@@ -324,17 +324,23 @@ class Supertrend(BaseIndicator):
         lower_band = hl_avg - multiplier * atr
         
         # Initialize arrays
-        final_upper = np.empty(n)
-        final_lower = np.empty(n)
-        supertrend = np.empty(n)
-        direction = np.empty(n)
+        final_upper = np.full(n, np.nan)
+        final_lower = np.full(n, np.nan)
+        supertrend = np.full(n, np.nan)
+        direction = np.zeros(n)
         
-        final_upper[0] = upper_band[0]
-        final_lower[0] = lower_band[0]
-        supertrend[0] = final_upper[0]
-        direction[0] = 1
+        first_valid = period - 1
+        if first_valid < 0 or first_valid >= n:
+            return supertrend, direction
         
-        for i in range(1, n):
+        # Seed with first valid values (where ATR is defined)
+        final_upper[first_valid] = upper_band[first_valid]
+        final_lower[first_valid] = lower_band[first_valid]
+        supertrend[first_valid] = final_upper[first_valid]
+        direction[first_valid] = 1.0
+        
+        # Iterate from the next bar onward
+        for i in range(first_valid + 1, n):
             # Final upper band
             if upper_band[i] < final_upper[i-1] or close[i-1] > final_upper[i-1]:
                 final_upper[i] = upper_band[i]

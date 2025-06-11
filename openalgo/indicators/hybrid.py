@@ -65,6 +65,7 @@ class ADX(BaseIndicator):
         di_plus = np.full(n, np.nan)
         di_minus = np.full(n, np.nan)
         adx = np.full(n, np.nan)
+        dx = np.full(n, np.nan)  # store DX values separately for proper ADX seed
         
         # Initial smoothed values
         if n >= period:
@@ -90,16 +91,20 @@ class ADX(BaseIndicator):
                     di_plus[i] = (sm_dm_plus / atr[i]) * 100
                     di_minus[i] = (sm_dm_minus / atr[i]) * 100
                 
-                # DX calculation
+                # DX calculation (store for later ADX seed)
                 di_sum = di_plus[i] + di_minus[i]
                 if di_sum > 0:
-                    dx = abs(di_plus[i] - di_minus[i]) / di_sum * 100
-                    
-                    # ADX calculation
-                    if i == period:
-                        adx[i] = dx
-                    else:
-                        adx[i] = (adx[i-1] * (period - 1) + dx) / period
+                    dx[i] = abs(di_plus[i] - di_minus[i]) / di_sum * 100
+        
+            # ---- ADX Seed & Smoothing ----
+            first_adx_pos = period * 2 - 1
+            if n > first_adx_pos:
+                # Average of DX over the first 'period' values to seed ADX
+                adx[first_adx_pos] = np.nanmean(dx[period:first_adx_pos + 1])
+                # Continue smoothing ADX for remaining periods
+                for i in range(first_adx_pos + 1, n):
+                    if not np.isnan(dx[i]):
+                        adx[i] = (adx[i-1] * (period - 1) + dx[i]) / period
         
         return di_plus, di_minus, adx
     
