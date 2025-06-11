@@ -31,9 +31,9 @@ class OBV(BaseIndicator):
     def _calculate_obv(close: np.ndarray, volume: np.ndarray) -> np.ndarray:
         """Numba optimized OBV calculation"""
         n = len(close)
-        # Initialize with NaNs then seed baseline at 0 to align with TA-Lib
-        obv = np.full(n, np.nan)
-        obv[0] = 0.0
+        # Seed baseline with first volume (TA-Lib behaviour)
+        obv = np.empty(n)
+        obv[0] = volume[0]
         
         # Calculate OBV
         for i in range(1, n):
@@ -194,43 +194,41 @@ class MFI(BaseIndicator):
     @jit(nopython=True)
     def _calculate_mfi(high: np.ndarray, low: np.ndarray, close: np.ndarray,
                       volume: np.ndarray, period: int) -> np.ndarray:
-        """Numba optimized MFI calculation"""
+        """Numba optimized MFI aligned with TA-Lib"""
         n = len(close)
-        mfi = np.full(n, np.nan)
+        result = np.full(n, np.nan)
         
-        # Calculate typical price
-        typical_price = (high + low + close) / 3.0
+        tp = (high + low + close) / 3.0
+        rmf = tp * volume  # raw money flow
         
-        # Calculate raw money flow
-        raw_money_flow = typical_price * volume
+        # Pre-compute positive / negative flows per bar
+        pos_raw = np.zeros(n)
+        neg_raw = np.zeros(n)
+        for i in range(1, n):
+            if tp[i] > tp[i - 1]:
+                pos_raw[i] = rmf[i]
+            elif tp[i] < tp[i - 1]:
+                neg_raw[i] = rmf[i]
         
-        # Calculate MFI
-        for i in range(period, n):
-            positive_flow = 0.0
-            negative_flow = 0.0
+        # Rolling window sums
+        pos_sum = 0.0
+        neg_sum = 0.0
+        for i in range(1, n):
+            pos_sum += pos_raw[i]
+            neg_sum += neg_raw[i]
             
-            for j in range(period):
-                idx = i - period + 1 + j
-                
-                if idx == 0:
-                    # For the first period, consider neutral
-                    continue
-                
-                if typical_price[idx] > typical_price[idx - 1]:
-                    positive_flow += raw_money_flow[idx]
-                elif typical_price[idx] < typical_price[idx - 1]:
-                    negative_flow += raw_money_flow[idx]
-                # Equal prices don't contribute to either flow
+            if i >= period:
+                pos_sum -= pos_raw[i - period]
+                neg_sum -= neg_raw[i - period]
             
-            if negative_flow == 0:
-                mfi[i] = 100.0
-            elif positive_flow == 0:
-                mfi[i] = 0.0
-            else:
-                money_ratio = positive_flow / negative_flow
-                mfi[i] = 100.0 - (100.0 / (1.0 + money_ratio))
+            if i >= period - 1:
+                if neg_sum == 0:
+                    result[i] = 100.0
+                else:
+                    m_ratio = pos_sum / neg_sum
+                    result[i] = 100.0 - (100.0 / (1.0 + m_ratio))
         
-        return mfi
+        return result
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],

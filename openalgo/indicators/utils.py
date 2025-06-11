@@ -5,11 +5,23 @@ OpenAlgo Technical Indicators - Utility Functions
 
 import numpy as np
 import pandas as pd
-from numba import jit
+from numba import njit, prange
 from typing import Union, Optional
 
 
-@jit(nopython=True)
+# ------------------------------------------------------------------
+# Core helper – ensure every indicator receives a contiguous float64
+# ------------------------------------------------------------------
+
+def validate_input(arr: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+    """Return C-contiguous float64 numpy array (zero-copy when possible)."""
+    arr = np.asarray(arr, dtype=np.float64)
+    if not arr.flags['C_CONTIGUOUS']:
+        arr = np.ascontiguousarray(arr)
+    return arr
+
+
+@njit(fastmath=True, cache=True)
 def crossover(series1: np.ndarray, series2: np.ndarray) -> np.ndarray:
     """
     Check if series1 crosses over series2
@@ -39,7 +51,7 @@ def crossover(series1: np.ndarray, series2: np.ndarray) -> np.ndarray:
     return result
 
 
-@jit(nopython=True)
+@njit(fastmath=True, cache=True)
 def crossunder(series1: np.ndarray, series2: np.ndarray) -> np.ndarray:
     """
     Check if series1 crosses under series2
@@ -69,7 +81,7 @@ def crossunder(series1: np.ndarray, series2: np.ndarray) -> np.ndarray:
     return result
 
 
-@jit(nopython=True)
+@njit(fastmath=True, cache=True, parallel=True)
 def highest(data: np.ndarray, period: int) -> np.ndarray:
     """
     Calculate the highest value over a rolling window
@@ -89,13 +101,13 @@ def highest(data: np.ndarray, period: int) -> np.ndarray:
     n = len(data)
     result = np.full(n, np.nan)
     
-    for i in range(period - 1, n):
+    for i in prange(period - 1, n):
         result[i] = data[i - period + 1:i + 1].max()
     
     return result
 
 
-@jit(nopython=True)
+@njit(fastmath=True, cache=True, parallel=True)
 def lowest(data: np.ndarray, period: int) -> np.ndarray:
     """
     Calculate the lowest value over a rolling window
@@ -115,13 +127,13 @@ def lowest(data: np.ndarray, period: int) -> np.ndarray:
     n = len(data)
     result = np.full(n, np.nan)
     
-    for i in range(period - 1, n):
+    for i in prange(period - 1, n):
         result[i] = data[i - period + 1:i + 1].min()
     
     return result
 
 
-@jit(nopython=True)
+@njit(fastmath=True, cache=True)
 def change(data: np.ndarray, length: int = 1) -> np.ndarray:
     """
     Calculate the change in value over a specified number of periods
@@ -147,7 +159,7 @@ def change(data: np.ndarray, length: int = 1) -> np.ndarray:
     return result
 
 
-@jit(nopython=True)
+@njit(fastmath=True, cache=True)
 def roc(data: np.ndarray, length: int) -> np.ndarray:
     """
     Calculate Rate of Change (ROC)
@@ -174,7 +186,7 @@ def roc(data: np.ndarray, length: int) -> np.ndarray:
     return result
 
 
-@jit(nopython=True)
+@njit(fastmath=True, cache=True)
 def sma(data: np.ndarray, period: int) -> np.ndarray:
     """
     Simple Moving Average utility function
@@ -200,7 +212,7 @@ def sma(data: np.ndarray, period: int) -> np.ndarray:
     return result
 
 
-@jit(nopython=True)
+@njit(fastmath=True, cache=True)
 def ema(data: np.ndarray, period: int) -> np.ndarray:
     """
     Exponential Moving Average utility function
@@ -237,7 +249,7 @@ def ema(data: np.ndarray, period: int) -> np.ndarray:
     return result
 
 
-@jit(nopython=True)
+@njit(fastmath=True, cache=True)
 def stdev(data: np.ndarray, period: int) -> np.ndarray:
     """
     Calculate rolling standard deviation
@@ -269,34 +281,6 @@ def stdev(data: np.ndarray, period: int) -> np.ndarray:
         result[i] = np.sqrt(variance / period)
     
     return result
-
-
-def validate_input(data: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
-    """
-    Validate and convert input data to numpy array
-    
-    Parameters:
-    -----------
-    data : Union[np.ndarray, pd.Series, list]
-        Input data to validate
-        
-    Returns:
-    --------
-    np.ndarray
-        Validated numpy array
-    """
-    if isinstance(data, pd.Series):
-        return data.values.astype(np.float64)
-    elif isinstance(data, list):
-        if len(data) == 0:
-            raise ValueError("Input data cannot be empty")
-        return np.array(data, dtype=np.float64)
-    elif isinstance(data, np.ndarray):
-        if data.size == 0:
-            raise ValueError("Input data cannot be empty")
-        return data.astype(np.float64)
-    else:
-        raise TypeError(f"Invalid input type: {type(data)}. Expected np.ndarray, pd.Series, or list")
 
 
 def true_range(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> np.ndarray:
