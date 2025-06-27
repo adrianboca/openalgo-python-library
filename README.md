@@ -443,6 +443,39 @@ result = client.symbol(
 }
 ```
 
+#### Search
+Search for symbols across exchanges.
+```python
+result = client.search(
+    query="RELIANCE"
+)
+# Returns list of matching symbols with details
+
+# Search with exchange filter
+result = client.search(
+    query="NIFTY",
+    exchange="NFO"
+)
+# Supported exchanges: NSE, NFO, BSE, BFO, MCX, CDS, BCD, NCDEX, NSE_INDEX, BSE_INDEX, MCX_INDEX
+# Returns:
+{
+    "status": "success",
+    "data": [
+        {
+            "symbol": "NIFTY24APR25FUT",
+            "name": "NIFTY",
+            "exchange": "NFO",
+            "token": "54452",
+            "instrumenttype": "FUTIDX",
+            "lotsize": 75,
+            "strike": -0.01,
+            "expiry": "24-APR-25"
+        },
+        # ... more matching symbols
+    ]
+}
+```
+
 ## Examples
 
 Check the examples directory for detailed usage:

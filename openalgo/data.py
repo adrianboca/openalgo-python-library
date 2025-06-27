@@ -16,49 +16,71 @@ class DataAPI(BaseAPI):
     Inherits from the BaseAPI class.
     """
 
-    def _handle_response(self, response, max_retries=3, retry_delay=1):
-        """Helper method to handle API responses with retry logic"""
-        retries = 0
-        while retries < max_retries:
-            try:
-                if response.status_code == 500:  # Server error, might be temporary
-                    retries += 1
-                    if retries < max_retries:
-                        time.sleep(retry_delay)
-                        continue
-                
-                if response.status_code != 200:
-                    return {
-                        'status': 'error',
-                        'message': f'HTTP {response.status_code}: {response.text}',
-                        'code': response.status_code,
-                        'error_type': 'http_error'
-                    }
-                
-                data = response.json()
-                if data.get('status') == 'error':
-                    return {
-                        'status': 'error',
-                        'message': data.get('message', 'Unknown error'),
-                        'code': response.status_code,
-                        'error_type': 'api_error'
-                    }
-                return data
-                
-            except httpx.HTTPError:
+    def _make_request(self, endpoint, payload):
+        """Make HTTP request with proper error handling"""
+        url = self.base_url + endpoint
+        try:
+            response = httpx.post(url, json=payload, headers=self.headers)
+            return self._handle_response(response)
+        except httpx.TimeoutException:
+            return {
+                'status': 'error',
+                'message': 'Request timed out. The server took too long to respond.',
+                'error_type': 'timeout_error'
+            }
+        except httpx.ConnectError:
+            return {
+                'status': 'error',
+                'message': 'Failed to connect to the server. Please check if the server is running.',
+                'error_type': 'connection_error'
+            }
+        except httpx.HTTPError as e:
+            return {
+                'status': 'error',
+                'message': f'HTTP error occurred: {str(e)}',
+                'error_type': 'http_error'
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'An unexpected error occurred: {str(e)}',
+                'error_type': 'unknown_error'
+            }
+    
+    def _handle_response(self, response):
+        """Helper method to handle API responses"""
+        try:
+            if response.status_code != 200:
                 return {
                     'status': 'error',
-                    'message': 'Invalid JSON response from server',
-                    'raw_response': response.text,
-                    'error_type': 'json_error'
+                    'message': f'HTTP {response.status_code}: {response.text}',
+                    'code': response.status_code,
+                    'error_type': 'http_error'
                 }
-            except Exception as e:
+            
+            data = response.json()
+            if data.get('status') == 'error':
                 return {
                     'status': 'error',
-                    'message': str(e),
-                    'error_type': 'unknown_error'
+                    'message': data.get('message', 'Unknown error'),
+                    'code': response.status_code,
+                    'error_type': 'api_error'
                 }
-        return response.json()  # Return last response if all retries failed
+            return data
+            
+        except ValueError:
+            return {
+                'status': 'error',
+                'message': 'Invalid JSON response from server',
+                'raw_response': response.text,
+                'error_type': 'json_error'
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': str(e),
+                'error_type': 'unknown_error'
+            }
 
     def quotes(self, *, symbol, exchange):
         """
@@ -71,14 +93,12 @@ class DataAPI(BaseAPI):
         Returns:
         dict: JSON response containing quote data including bid, ask, ltp, volume etc.
         """
-        url = self.base_url + "quotes"
         payload = {
             "apikey": self.api_key,
             "symbol": symbol,
             "exchange": exchange
         }
-        response = httpx.post(url, json=payload, headers=self.headers)
-        return self._handle_response(response)
+        return self._make_request("quotes", payload)
 
     def depth(self, *, symbol, exchange):
         """
@@ -91,14 +111,12 @@ class DataAPI(BaseAPI):
         Returns:
         dict: JSON response containing market depth data including top 5 bids/asks.
         """
-        url = self.base_url + "depth"
         payload = {
             "apikey": self.api_key,
             "symbol": symbol,
             "exchange": exchange
         }
-        response = httpx.post(url, json=payload, headers=self.headers)
-        return self._handle_response(response)
+        return self._make_request("depth", payload)
 
     def symbol(self, *, symbol, exchange):
         """
@@ -111,14 +129,41 @@ class DataAPI(BaseAPI):
         Returns:
         dict: JSON response containing symbol details like token, lot size, tick size, etc.
         """
-        url = self.base_url + "symbol"
         payload = {
             "apikey": self.api_key,
             "symbol": symbol,
             "exchange": exchange
         }
-        response = httpx.post(url, json=payload, headers=self.headers)
-        return self._handle_response(response)
+        return self._make_request("symbol", payload)
+        
+    def search(self, *, query, exchange=None):
+        """
+        Search for symbols across exchanges.
+        
+        Parameters:
+        - query (str): Search query for symbol. Required.
+        - exchange (str): Exchange filter. Optional.
+            Supported exchanges: NSE, NFO, BSE, BFO, MCX, CDS, BCD, NCDEX, NSE_INDEX, BSE_INDEX, MCX_INDEX
+        
+        Returns:
+        dict: JSON response containing matching symbols with details like:
+            - symbol: Trading symbol
+            - name: Company/instrument name  
+            - exchange: Exchange code
+            - token: Unique instrument token
+            - instrumenttype: Type of instrument
+            - lotsize: Lot size
+            - strike: Strike price (for options)
+            - expiry: Expiry date (for derivatives)
+        """
+        payload = {
+            "apikey": self.api_key,
+            "query": query
+        }
+        if exchange:
+            payload["exchange"] = exchange
+            
+        return self._make_request("search", payload)
         
     def history(self, *, symbol, exchange, interval, start_date, end_date):
         """
@@ -138,7 +183,6 @@ class DataAPI(BaseAPI):
                                 For intraday data (non-daily timeframes), timestamps
                                 are converted to IST. Daily data is already in IST.
         """
-        url = self.base_url + "history"
         payload = {
             "apikey": self.api_key,
             "symbol": symbol,
@@ -148,8 +192,7 @@ class DataAPI(BaseAPI):
             "end_date": end_date
         }
 
-        response = httpx.post(url, json=payload, headers=self.headers)
-        result = self._handle_response(response)
+        result = self._make_request("history", payload)
         
         if result.get('status') == 'success' and 'data' in result:
             try:
@@ -193,12 +236,10 @@ class DataAPI(BaseAPI):
         dict: JSON response containing supported intervals categorized by type
               (seconds, minutes, hours, days, weeks, months)
         """
-        url = self.base_url + "intervals"
         payload = {
             "apikey": self.api_key
         }
-        response = httpx.post(url, json=payload, headers=self.headers)
-        return self._handle_response(response)
+        return self._make_request("intervals", payload)
         
     def interval(self):
         """
