@@ -250,3 +250,23 @@ class DataAPI(BaseAPI):
         dict: JSON response containing supported intervals
         """
         return self.intervals()
+
+    def expiry(self, *, symbol, exchange, instrumenttype):
+        """
+        Get expiry dates for a symbol.
+
+        Parameters:
+        - symbol (str): Trading symbol. Required.
+        - exchange (str): Exchange code. Required.
+        - instrumenttype (str): Instrument type (futures/options). Required.
+
+        Returns:
+        dict: JSON response containing expiry dates for the symbol
+        """
+        payload = {
+            "apikey": self.api_key,
+            "symbol": symbol,
+            "exchange": exchange,
+            "instrumenttype": instrumenttype
+        }
+        return self._make_request("expiry", payload)

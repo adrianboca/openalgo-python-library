@@ -476,6 +476,51 @@ result = client.search(
 }
 ```
 
+#### Expiry
+Get expiry dates for futures and options.
+```python
+# Get expiry dates for futures
+result = client.expiry(
+    symbol="NIFTY",
+    exchange="NFO",
+    instrumenttype="futures"
+)
+# Returns:
+{
+    "status": "success",
+    "data": [
+        "31-JUL-25",
+        "28-AUG-25",
+        "25-SEP-25"
+    ],
+    "message": "Found 3 expiry dates for NIFTY futures in NFO"
+}
+
+# Get expiry dates for options
+result = client.expiry(
+    symbol="NIFTY",
+    exchange="NFO",
+    instrumenttype="options"
+)
+# Returns:
+{
+    "status": "success",
+    "data": [
+        "10-JUL-25",
+        "17-JUL-25",
+        "24-JUL-25",
+        "31-JUL-25",
+        "07-AUG-25",
+        "28-AUG-25",
+        "25-SEP-25",
+        "24-DEC-25",
+        "26-MAR-26",
+        "25-JUN-26"
+    ],
+    "message": "Found 10 expiry dates for NIFTY options in NFO"
+}
+```
+
 ## Examples
 
 Check the examples directory for detailed usage:
