@@ -228,3 +228,48 @@ class AccountAPI(BaseAPI):
             "apikey": self.api_key
         }
         return self._make_request("holdings", payload)
+
+    def analyzerstatus(self):
+        """
+        Get analyzer status information.
+
+        Returns:
+        dict: JSON response containing analyzer status with format:
+            {
+                "data": {
+                    "analyze_mode": false,
+                    "mode": "live",
+                    "total_logs": 2
+                },
+                "status": "success"
+            }
+        """
+        payload = {
+            "apikey": self.api_key
+        }
+        return self._make_request("analyzer", payload)
+
+    def analyzertoggle(self, mode):
+        """
+        Toggle analyzer mode between analyze and live modes.
+
+        Args:
+            mode (bool): True for analyze mode (simulated), False for live mode
+
+        Returns:
+        dict: JSON response containing analyzer toggle result with format:
+            {
+                "status": "success",
+                "data": {
+                    "mode": "live/analyze",
+                    "analyze_mode": true/false,
+                    "total_logs": 2,
+                    "message": "Analyzer mode switched to live"
+                }
+            }
+        """
+        payload = {
+            "apikey": self.api_key,
+            "mode": mode
+        }
+        return self._make_request("analyzer/toggle", payload)

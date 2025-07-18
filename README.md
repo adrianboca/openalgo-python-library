@@ -124,6 +124,42 @@ result = client.holdings()
 # - Total investment value and P&L
 ```
 
+#### Analyzer Status
+Get analyzer status information.
+```python
+result = client.analyzerstatus()
+# Returns:
+{
+    "data": {
+        "analyze_mode": false,
+        "mode": "live",
+        "total_logs": 2
+    },
+    "status": "success"
+}
+```
+
+#### Analyzer Toggle
+Toggle analyzer mode between analyze and live modes.
+```python
+# Switch to analyze mode (simulated responses)
+result = client.analyzertoggle(mode=True)
+
+# Switch to live mode (actual broker operations)
+result = client.analyzertoggle(mode=False)
+
+# Returns:
+{
+    "status": "success",
+    "data": {
+        "mode": "live/analyze",
+        "analyze_mode": true/false,
+        "total_logs": 2,
+        "message": "Analyzer mode switched to live"
+    }
+}
+```
+
 ### 3. Orders API
 
 #### Place Order
