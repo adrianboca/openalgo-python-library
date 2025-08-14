@@ -8,23 +8,23 @@ import pandas as pd
 from numba import jit
 from typing import Union, Tuple, Optional
 from .base import BaseIndicator
+from .utils import ema
 
 
-@jit(nopython=True)
-def _calculate_ema_for_macd(data: np.ndarray, period: int) -> np.ndarray:
-    """EMA calculation optimized for MACD"""
+@jit(nopython=True, cache=True)
+def _ema_for_macd(data: np.ndarray, period: int) -> np.ndarray:
+    """Specialized EMA for MACD - Numba compatible"""
     n = len(data)
-    ema = np.empty(n)
+    result = np.empty(n)
     alpha = 2.0 / (period + 1)
     
-    # Initialize with first value
-    ema[0] = data[0]
+    # Initialize with first value for MACD compatibility
+    result[0] = data[0]
     
-    # Calculate EMA
     for i in range(1, n):
-        ema[i] = alpha * data[i] + (1 - alpha) * ema[i-1]
+        result[i] = alpha * data[i] + (1 - alpha) * result[i-1]
     
-    return ema
+    return result
 
 
 class RSI(BaseIndicator):
@@ -131,14 +131,14 @@ class MACD(BaseIndicator):
                        signal_period: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Numba optimized MACD calculation"""
         # Calculate EMAs
-        ema_fast = _calculate_ema_for_macd(data, fast_period)
-        ema_slow = _calculate_ema_for_macd(data, slow_period)
+        ema_fast = _ema_for_macd(data, fast_period)
+        ema_slow = _ema_for_macd(data, slow_period)
         
         # MACD line
         macd_line = ema_fast - ema_slow
         
         # Signal line
-        signal_line = _calculate_ema_for_macd(macd_line, signal_period)
+        signal_line = _ema_for_macd(macd_line, signal_period)
         
         # MACD histogram
         histogram = macd_line - signal_line

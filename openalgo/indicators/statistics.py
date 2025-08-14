@@ -455,7 +455,7 @@ class MODE(BaseIndicator):
     def calculate(self, data: Union[np.ndarray, pd.Series, list], 
                  period: int = 20, bins: int = 10) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate Rolling Mode
+        Calculate Rolling Mode using optimized algorithm
         
         Parameters:
         -----------
@@ -474,25 +474,32 @@ class MODE(BaseIndicator):
         validated_data, input_type, index = self.validate_input(data)
         self.validate_period(period, len(validated_data))
         
-        n = len(validated_data)
+        result = self._calculate_mode_optimized(validated_data, period, bins)
+        return self.format_output(result, input_type, index)
+    
+    @staticmethod
+    @jit(nopython=True, cache=True)
+    def _calculate_mode_optimized(data: np.ndarray, period: int, bins: int) -> np.ndarray:
+        """Optimized rolling mode calculation using vectorized binning"""
+        n = len(data)
         result = np.full(n, np.nan)
         
         for i in range(period - 1, n):
-            window = validated_data[i - period + 1:i + 1]
+            window = data[i - period + 1:i + 1]
             
-            # Discretize the data into bins
+            # Fast min/max calculation
             min_val = np.min(window)
             max_val = np.max(window)
             
             if max_val > min_val:
                 bin_width = (max_val - min_val) / bins
-                bin_indices = ((window - min_val) / bin_width).astype(int)
+                
+                # Vectorized binning
+                bin_indices = ((window - min_val) / bin_width).astype(np.int32)
                 bin_indices = np.clip(bin_indices, 0, bins - 1)
                 
-                # Count frequencies
-                counts = np.zeros(bins)
-                for idx in bin_indices:
-                    counts[idx] += 1
+                # Fast histogram using numpy bincount
+                counts = np.bincount(bin_indices, minlength=bins)
                 
                 # Find mode bin
                 mode_bin = np.argmax(counts)
@@ -500,4 +507,4 @@ class MODE(BaseIndicator):
             else:
                 result[i] = window[0]
         
-        return self.format_output(result, input_type, index)
+        return result

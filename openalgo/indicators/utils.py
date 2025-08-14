@@ -5,7 +5,7 @@ OpenAlgo Technical Indicators - Utility Functions
 
 import numpy as np
 import pandas as pd
-from numba import njit, prange
+from openalgo.numba_shim import jit, njit, prange
 from typing import Union, Optional
 
 
@@ -81,10 +81,10 @@ def crossunder(series1: np.ndarray, series2: np.ndarray) -> np.ndarray:
     return result
 
 
-@njit(fastmath=True, cache=True, parallel=True)
+@njit(fastmath=True, cache=True)
 def highest(data: np.ndarray, period: int) -> np.ndarray:
     """
-    Calculate the highest value over a rolling window
+    Calculate the highest value over a rolling window using O(n) deque algorithm
     
     Parameters:
     -----------
@@ -101,16 +101,40 @@ def highest(data: np.ndarray, period: int) -> np.ndarray:
     n = len(data)
     result = np.full(n, np.nan)
     
-    for i in prange(period - 1, n):
-        result[i] = data[i - period + 1:i + 1].max()
+    # Deque simulation using arrays for Numba compatibility
+    deque_vals = np.empty(period, dtype=np.float64)
+    deque_indices = np.empty(period, dtype=np.int64)
+    deque_size = 0
+    
+    for i in range(n):
+        # Remove elements outside the window
+        while deque_size > 0 and deque_indices[0] <= i - period:
+            # Shift elements left (pop front)
+            for j in range(deque_size - 1):
+                deque_vals[j] = deque_vals[j + 1]
+                deque_indices[j] = deque_indices[j + 1]
+            deque_size -= 1
+        
+        # Remove elements smaller than current value from back
+        while deque_size > 0 and deque_vals[deque_size - 1] <= data[i]:
+            deque_size -= 1
+        
+        # Add current element
+        deque_vals[deque_size] = data[i]
+        deque_indices[deque_size] = i
+        deque_size += 1
+        
+        # Set result if window is complete
+        if i >= period - 1:
+            result[i] = deque_vals[0]  # Front element is the maximum
     
     return result
 
 
-@njit(fastmath=True, cache=True, parallel=True)
+@njit(fastmath=True, cache=True)
 def lowest(data: np.ndarray, period: int) -> np.ndarray:
     """
-    Calculate the lowest value over a rolling window
+    Calculate the lowest value over a rolling window using O(n) deque algorithm
     
     Parameters:
     -----------
@@ -127,8 +151,32 @@ def lowest(data: np.ndarray, period: int) -> np.ndarray:
     n = len(data)
     result = np.full(n, np.nan)
     
-    for i in prange(period - 1, n):
-        result[i] = data[i - period + 1:i + 1].min()
+    # Deque simulation using arrays for Numba compatibility  
+    deque_vals = np.empty(period, dtype=np.float64)
+    deque_indices = np.empty(period, dtype=np.int64)
+    deque_size = 0
+    
+    for i in range(n):
+        # Remove elements outside the window
+        while deque_size > 0 and deque_indices[0] <= i - period:
+            # Shift elements left (pop front)
+            for j in range(deque_size - 1):
+                deque_vals[j] = deque_vals[j + 1]
+                deque_indices[j] = deque_indices[j + 1]
+            deque_size -= 1
+        
+        # Remove elements larger than current value from back
+        while deque_size > 0 and deque_vals[deque_size - 1] >= data[i]:
+            deque_size -= 1
+        
+        # Add current element
+        deque_vals[deque_size] = data[i]
+        deque_indices[deque_size] = i
+        deque_size += 1
+        
+        # Set result if window is complete
+        if i >= period - 1:
+            result[i] = deque_vals[0]  # Front element is the minimum
     
     return result
 
@@ -189,7 +237,7 @@ def roc(data: np.ndarray, length: int) -> np.ndarray:
 @njit(fastmath=True, cache=True)
 def sma(data: np.ndarray, period: int) -> np.ndarray:
     """
-    Simple Moving Average utility function
+    Simple Moving Average using O(n) rolling sum algorithm
     
     Parameters:
     -----------
@@ -206,8 +254,19 @@ def sma(data: np.ndarray, period: int) -> np.ndarray:
     n = len(data)
     result = np.full(n, np.nan)
     
-    for i in range(period - 1, n):
-        result[i] = np.mean(data[i - period + 1:i + 1])
+    if n < period:
+        return result
+    
+    # Calculate initial sum for first window
+    rolling_sum = 0.0
+    for i in range(period):
+        rolling_sum += data[i]
+    result[period - 1] = rolling_sum / period
+    
+    # Use rolling sum for subsequent values
+    for i in range(period, n):
+        rolling_sum = rolling_sum + data[i] - data[i - period]
+        result[i] = rolling_sum / period
     
     return result
 
@@ -252,7 +311,7 @@ def ema(data: np.ndarray, period: int) -> np.ndarray:
 @njit(fastmath=True, cache=True)
 def stdev(data: np.ndarray, period: int) -> np.ndarray:
     """
-    Calculate rolling standard deviation
+    Calculate rolling standard deviation using O(n) rolling sums algorithm
     
     Parameters:
     -----------
@@ -269,23 +328,41 @@ def stdev(data: np.ndarray, period: int) -> np.ndarray:
     n = len(data)
     result = np.full(n, np.nan)
     
-    for i in range(period - 1, n):
-        window_data = data[i - period + 1:i + 1]
-        mean_val = np.mean(window_data)
+    if n < period:
+        return result
+    
+    # Initialize rolling sums
+    rolling_sum = 0.0
+    rolling_sum_sq = 0.0
+    
+    # Calculate initial sums for first window
+    for i in range(period):
+        rolling_sum += data[i]
+        rolling_sum_sq += data[i] * data[i]
+    
+    mean = rolling_sum / period
+    variance = (rolling_sum_sq / period) - (mean * mean)
+    result[period - 1] = np.sqrt(max(0.0, variance))  # Ensure non-negative
+    
+    # Use rolling sums for subsequent values
+    for i in range(period, n):
+        old_val = data[i - period]
+        new_val = data[i]
         
-        variance = 0.0
-        for j in range(period):
-            diff = window_data[j] - mean_val
-            variance += diff * diff
+        rolling_sum = rolling_sum + new_val - old_val
+        rolling_sum_sq = rolling_sum_sq + (new_val * new_val) - (old_val * old_val)
         
-        result[i] = np.sqrt(variance / period)
+        mean = rolling_sum / period
+        variance = (rolling_sum_sq / period) - (mean * mean)
+        result[i] = np.sqrt(max(0.0, variance))  # Ensure non-negative
     
     return result
 
 
+@njit(fastmath=True, cache=True)
 def true_range(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> np.ndarray:
     """
-    Calculate True Range
+    Calculate True Range (Numba optimized)
     
     Parameters:
     -----------
@@ -315,3 +392,432 @@ def true_range(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> np.ndarr
         tr[i] = max(hl, hc, lc)
     
     return tr
+
+
+@njit(fastmath=True, cache=True)
+def atr_wilder(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
+    """
+    Average True Range using Wilder's smoothing method (consolidated kernel)
+    
+    Parameters:
+    -----------
+    high : np.ndarray
+        High prices
+    low : np.ndarray
+        Low prices
+    close : np.ndarray
+        Closing prices
+    period : int
+        ATR period
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of ATR values
+    """
+    n = len(high)
+    tr = true_range(high, low, close)
+    atr = np.full(n, np.nan)
+    
+    if n >= period:
+        # Initial ATR is simple average
+        sum_tr = 0.0
+        for i in range(period):
+            sum_tr += tr[i]
+        atr[period-1] = sum_tr / period
+        
+        # Subsequent ATR values use Wilder's smoothing
+        for i in range(period, n):
+            atr[i] = (atr[i-1] * (period - 1) + tr[i]) / period
+    
+    return atr
+
+
+@njit(fastmath=True, cache=True)
+def atr_sma(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
+    """
+    Average True Range using Simple Moving Average (consolidated kernel)
+    
+    Parameters:
+    -----------
+    high : np.ndarray
+        High prices
+    low : np.ndarray
+        Low prices
+    close : np.ndarray
+        Closing prices
+    period : int
+        ATR period
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of ATR values
+    """
+    tr = true_range(high, low, close)
+    return sma(tr, period)
+
+
+@njit(fastmath=True, cache=True)
+def ema_wilder(data: np.ndarray, period: int) -> np.ndarray:
+    """
+    Exponential Moving Average using Wilder's smoothing (alpha = 1/period)
+    
+    Parameters:
+    -----------
+    data : np.ndarray
+        Input data
+    period : int
+        EMA period
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of EMA values
+    """
+    n = len(data)
+    result = np.empty(n)
+    alpha = 1.0 / period
+    
+    # Seed initial values with NaN until enough data is available
+    result[:period-1] = np.nan
+    
+    # Calculate initial SMA as the first EMA value
+    sum_val = 0.0
+    for i in range(period):
+        sum_val += data[i]
+    result[period-1] = sum_val / period
+    
+    # Calculate EMA for remaining values
+    for i in range(period, n):
+        result[i] = alpha * data[i] + (1 - alpha) * result[i-1]
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def rolling_variance(data: np.ndarray, period: int) -> np.ndarray:
+    """
+    Calculate rolling variance using O(n) rolling sums algorithm
+    
+    Parameters:
+    -----------
+    data : np.ndarray
+        Input data
+    period : int
+        Window size for variance calculation
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of variance values
+    """
+    n = len(data)
+    result = np.full(n, np.nan)
+    
+    if n < period:
+        return result
+    
+    # Initialize rolling sums
+    rolling_sum = 0.0
+    rolling_sum_sq = 0.0
+    
+    # Calculate initial sums for first window
+    for i in range(period):
+        rolling_sum += data[i]
+        rolling_sum_sq += data[i] * data[i]
+    
+    mean = rolling_sum / period
+    result[period - 1] = (rolling_sum_sq / period) - (mean * mean)
+    
+    # Use rolling sums for subsequent values
+    for i in range(period, n):
+        old_val = data[i - period]
+        new_val = data[i]
+        
+        rolling_sum = rolling_sum + new_val - old_val
+        rolling_sum_sq = rolling_sum_sq + (new_val * new_val) - (old_val * old_val)
+        
+        mean = rolling_sum / period
+        result[i] = (rolling_sum_sq / period) - (mean * mean)
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def rolling_sum(data: np.ndarray, period: int) -> np.ndarray:
+    """
+    Calculate rolling sum using O(n) algorithm
+    
+    Parameters:
+    -----------
+    data : np.ndarray
+        Input data
+    period : int
+        Window size
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of rolling sum values
+    """
+    n = len(data)
+    result = np.full(n, np.nan)
+    
+    if n < period:
+        return result
+    
+    # Calculate initial sum for first window
+    rolling_sum = 0.0
+    for i in range(period):
+        rolling_sum += data[i]
+    result[period - 1] = rolling_sum
+    
+    # Use rolling sum for subsequent values
+    for i in range(period, n):
+        rolling_sum = rolling_sum + data[i] - data[i - period]
+        result[i] = rolling_sum
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def vwma_optimized(data: np.ndarray, volume: np.ndarray, period: int) -> np.ndarray:
+    """
+    Volume Weighted Moving Average using O(n) rolling sums algorithm
+    
+    Parameters:
+    -----------
+    data : np.ndarray
+        Price data
+    volume : np.ndarray
+        Volume data
+    period : int
+        Window size
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of VWMA values
+    """
+    n = len(data)
+    result = np.full(n, np.nan)
+    
+    if n < period:
+        return result
+    
+    # Initialize rolling sums
+    rolling_sum_pv = 0.0  # price * volume
+    rolling_sum_v = 0.0   # volume
+    
+    # Calculate initial sums for first window
+    for i in range(period):
+        rolling_sum_pv += data[i] * volume[i]
+        rolling_sum_v += volume[i]
+    
+    # Set first result
+    if rolling_sum_v > 0:
+        result[period - 1] = rolling_sum_pv / rolling_sum_v
+    else:
+        result[period - 1] = data[period - 1]
+    
+    # Use rolling sums for subsequent values
+    for i in range(period, n):
+        old_pv = data[i - period] * volume[i - period]
+        new_pv = data[i] * volume[i]
+        old_v = volume[i - period]
+        new_v = volume[i]
+        
+        rolling_sum_pv = rolling_sum_pv + new_pv - old_pv
+        rolling_sum_v = rolling_sum_v + new_v - old_v
+        
+        if rolling_sum_v > 0:
+            result[i] = rolling_sum_pv / rolling_sum_v
+        else:
+            result[i] = data[i]
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def cmo_optimized(data: np.ndarray, period: int) -> np.ndarray:
+    """
+    Chande Momentum Oscillator using O(n) rolling sums algorithm
+    
+    Parameters:
+    -----------
+    data : np.ndarray
+        Input data
+    period : int
+        CMO period
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of CMO values
+    """
+    n = len(data)
+    result = np.full(n, np.nan)
+    
+    if n < period + 1:
+        return result
+    
+    # Calculate price changes
+    changes = np.empty(n - 1)
+    for i in range(1, n):
+        changes[i - 1] = data[i] - data[i - 1]
+    
+    # Initialize rolling sums
+    rolling_sum_up = 0.0
+    rolling_sum_down = 0.0
+    
+    # Calculate initial sums for first window
+    for i in range(period):
+        change = changes[i]
+        if change > 0:
+            rolling_sum_up += change
+        elif change < 0:
+            rolling_sum_down += abs(change)
+    
+    # Set first result
+    total_movement = rolling_sum_up + rolling_sum_down
+    if total_movement > 0:
+        result[period] = ((rolling_sum_up - rolling_sum_down) / total_movement) * 100
+    else:
+        result[period] = 0.0
+    
+    # Use rolling sums for subsequent values
+    for i in range(period + 1, n):
+        # Remove old change
+        old_change = changes[i - period - 1]
+        if old_change > 0:
+            rolling_sum_up -= old_change
+        elif old_change < 0:
+            rolling_sum_down -= abs(old_change)
+        
+        # Add new change
+        new_change = changes[i - 1]
+        if new_change > 0:
+            rolling_sum_up += new_change
+        elif new_change < 0:
+            rolling_sum_down += abs(new_change)
+        
+        # Calculate CMO
+        total_movement = rolling_sum_up + rolling_sum_down
+        if total_movement > 0:
+            result[i] = ((rolling_sum_up - rolling_sum_down) / total_movement) * 100
+        else:
+            result[i] = 0.0
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def kama_optimized(data: np.ndarray, period: int = 10, fast_sc: float = 2.0, slow_sc: float = 30.0) -> np.ndarray:
+    """
+    Kaufman's Adaptive Moving Average using O(n) rolling volatility calculation
+    
+    Parameters:
+    -----------
+    data : np.ndarray
+        Input data
+    period : int, default=10
+        Period for efficiency ratio calculation
+    fast_sc : float, default=2.0
+        Fast smoothing constant
+    slow_sc : float, default=30.0
+        Slow smoothing constant
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of KAMA values
+    """
+    n = len(data)
+    result = np.full(n, np.nan)
+    
+    if n < period + 1:
+        return result
+    
+    # Convert smoothing constants to alpha values
+    fast_alpha = 2.0 / (fast_sc + 1.0)
+    slow_alpha = 2.0 / (slow_sc + 1.0)
+    
+    # Initialize first value
+    result[period] = data[period]
+    
+    # Initialize rolling volatility sum
+    rolling_volatility = 0.0
+    
+    # Calculate initial volatility sum
+    for i in range(1, period + 1):
+        rolling_volatility += abs(data[i] - data[i - 1])
+    
+    for i in range(period + 1, n):
+        # Calculate direction (net change over period)
+        direction = abs(data[i] - data[i - period])
+        
+        # Update rolling volatility using O(n) approach
+        # Remove old volatility component
+        old_volatility = abs(data[i - period] - data[i - period - 1])
+        rolling_volatility -= old_volatility
+        
+        # Add new volatility component
+        new_volatility = abs(data[i] - data[i - 1])
+        rolling_volatility += new_volatility
+        
+        # Calculate efficiency ratio
+        if rolling_volatility > 0:
+            er = direction / rolling_volatility
+        else:
+            er = 0.0
+        
+        # Calculate smoothing constant
+        sc = (er * (fast_alpha - slow_alpha) + slow_alpha) ** 2
+        
+        # Calculate KAMA
+        result[i] = result[i - 1] + sc * (data[i] - result[i - 1])
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def ulcer_index_optimized(data: np.ndarray, period: int) -> np.ndarray:
+    """
+    Improved O(n×period) Ulcer Index using running peak calculation
+    (True O(n) is complex for Ulcer Index due to the nature of drawdown calculation)
+    
+    Parameters:
+    -----------
+    data : np.ndarray
+        Price data (typically closing prices)
+    period : int
+        Period for Ulcer Index calculation
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of Ulcer Index values
+    """
+    n = len(data)
+    result = np.full(n, np.nan)
+    
+    if n < period:
+        return result
+    
+    for i in range(period - 1, n):
+        sum_squared_drawdown = 0.0
+        running_peak = data[i - period + 1]
+        
+        # Use running peak approach - O(period) per point
+        for j in range(period):
+            idx = i - period + 1 + j
+            running_peak = max(running_peak, data[idx])
+            
+            if running_peak > 0:
+                drawdown = (data[idx] - running_peak) / running_peak
+                sum_squared_drawdown += drawdown * drawdown
+        
+        result[i] = np.sqrt(sum_squared_drawdown / period) * 100
+    
+    return result

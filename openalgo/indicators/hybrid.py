@@ -8,6 +8,7 @@ import pandas as pd
 from numba import jit
 from typing import Union, Tuple, Optional
 from .base import BaseIndicator
+from .utils import true_range, ema_wilder
 
 
 class ADX(BaseIndicator):
@@ -23,30 +24,22 @@ class ADX(BaseIndicator):
         super().__init__("ADX")
     
     @staticmethod
-    @jit(nopython=True)
-    def _calculate_adx(high: np.ndarray, low: np.ndarray, close: np.ndarray,
+    @jit(nopython=True, cache=True)
+    def _calculate_adx_optimized(high: np.ndarray, low: np.ndarray, close: np.ndarray,
                       period: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Numba optimized ADX calculation"""
+        """Optimized ADX calculation using consolidated utilities"""
         n = len(high)
         
-        # Initialize arrays
-        tr = np.empty(n)
+        # Use consolidated true_range utility
+        tr = true_range(high, low, close)
+        
+        # Calculate Directional Movement
         dm_plus = np.empty(n)
         dm_minus = np.empty(n)
-        
-        # Calculate True Range and Directional Movement
-        tr[0] = high[0] - low[0]
         dm_plus[0] = 0
         dm_minus[0] = 0
         
         for i in range(1, n):
-            # True Range
-            hl = high[i] - low[i]
-            hc = abs(high[i] - close[i-1])
-            lc = abs(low[i] - close[i-1])
-            tr[i] = max(hl, hc, lc)
-            
-            # Directional Movement
             up_move = high[i] - high[i-1]
             down_move = low[i-1] - low[i]
             
@@ -60,51 +53,28 @@ class ADX(BaseIndicator):
             else:
                 dm_minus[i] = 0
         
-        # Calculate smoothed values
-        atr = np.full(n, np.nan)
+        # Use optimized Wilder's smoothing for ATR and DM
+        atr = ema_wilder(tr, period)
+        sm_dm_plus = ema_wilder(dm_plus, period)
+        sm_dm_minus = ema_wilder(dm_minus, period)
+        
+        # Calculate DI values
         di_plus = np.full(n, np.nan)
         di_minus = np.full(n, np.nan)
-        adx = np.full(n, np.nan)
-        dx = np.full(n, np.nan)  # store DX values separately for proper ADX seed
+        dx = np.full(n, np.nan)
         
-        # Initial smoothed values
-        if n >= period:
-            atr[period-1] = np.mean(tr[:period])
-            sm_dm_plus = np.mean(dm_plus[:period])
-            sm_dm_minus = np.mean(dm_minus[:period])
-            
-            if atr[period-1] > 0:
-                di_plus[period-1] = (sm_dm_plus / atr[period-1]) * 100
-                di_minus[period-1] = (sm_dm_minus / atr[period-1]) * 100
-            
-            # Calculate subsequent values
-            for i in range(period, n):
-                # Smoothed TR
-                atr[i] = (atr[i-1] * (period - 1) + tr[i]) / period
+        for i in range(period-1, n):
+            if atr[i] > 0:
+                di_plus[i] = (sm_dm_plus[i] / atr[i]) * 100
+                di_minus[i] = (sm_dm_minus[i] / atr[i]) * 100
                 
-                # Smoothed DM
-                sm_dm_plus = (sm_dm_plus * (period - 1) + dm_plus[i]) / period
-                sm_dm_minus = (sm_dm_minus * (period - 1) + dm_minus[i]) / period
-                
-                # DI calculations
-                if atr[i] > 0:
-                    di_plus[i] = (sm_dm_plus / atr[i]) * 100
-                    di_minus[i] = (sm_dm_minus / atr[i]) * 100
-                
-                # DX calculation (store for later ADX seed)
+                # DX calculation
                 di_sum = di_plus[i] + di_minus[i]
                 if di_sum > 0:
                     dx[i] = abs(di_plus[i] - di_minus[i]) / di_sum * 100
         
-            # ---- ADX Seed & Smoothing ----
-            first_adx_pos = period * 2 - 1
-            if n > first_adx_pos:
-                # Average of DX over the first 'period' values to seed ADX
-                adx[first_adx_pos] = np.nanmean(dx[period:first_adx_pos + 1])
-                # Continue smoothing ADX for remaining periods
-                for i in range(first_adx_pos + 1, n):
-                    if not np.isnan(dx[i]):
-                        adx[i] = (adx[i-1] * (period - 1) + dx[i]) / period
+        # Calculate ADX using Wilder's smoothing of DX
+        adx = ema_wilder(dx, period)
         
         return di_plus, di_minus, adx
     
@@ -138,7 +108,7 @@ class ADX(BaseIndicator):
         high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         self.validate_period(period, len(close_data))
         
-        results = self._calculate_adx(high_data, low_data, close_data, period)
+        results = self._calculate_adx_optimized(high_data, low_data, close_data, period)
         return self.format_multiple_outputs(results, input_type, index)
 
 

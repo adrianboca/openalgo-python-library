@@ -5,7 +5,7 @@ OpenAlgo Technical Indicators - Base Class
 
 import numpy as np
 import pandas as pd
-from numba import jit
+from openalgo.numba_shim import jit
 from abc import ABC, abstractmethod
 from typing import Union, Tuple, Optional, List
 
@@ -181,10 +181,9 @@ class BaseIndicator(ABC):
         return arrays
     
     @staticmethod
-    @jit(nopython=True)
     def rolling_window(arr: np.ndarray, window: int) -> np.ndarray:
         """
-        Create rolling window view of array (Numba optimized)
+        Create rolling window view of array (Pure NumPy - no Numba due to as_strided)
         
         Parameters:
         -----------
@@ -201,3 +200,32 @@ class BaseIndicator(ABC):
         shape = arr.shape[:-1] + (arr.shape[-1] - window + 1, window)
         strides = arr.strides + (arr.strides[-1],)
         return np.lib.stride_tricks.as_strided(arr, shape=shape, strides=strides)
+    
+    @staticmethod
+    @jit(nopython=True)
+    def rolling_window_numba(arr: np.ndarray, window: int) -> np.ndarray:
+        """
+        Create rolling window data using Numba-compatible approach
+        
+        Parameters:
+        -----------
+        arr : np.ndarray
+            Input array
+        window : int
+            Window size
+            
+        Returns:
+        --------
+        np.ndarray
+            2D array with rolling windows
+        """
+        n = len(arr)
+        if n < window:
+            return np.empty((0, window))
+        
+        result = np.empty((n - window + 1, window))
+        for i in range(n - window + 1):
+            for j in range(window):
+                result[i, j] = arr[i + j]
+        
+        return result

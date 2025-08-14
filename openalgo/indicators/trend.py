@@ -5,9 +5,10 @@ OpenAlgo Technical Indicators - Trend Indicators
 
 import numpy as np
 import pandas as pd
-from numba import jit
+from openalgo.numba_shim import jit
 from typing import Union, Tuple, Optional
 from .base import BaseIndicator
+from .utils import sma, ema, highest, lowest, vwma_optimized, kama_optimized, atr_wilder
 
 
 class SMA(BaseIndicator):
@@ -78,27 +79,7 @@ class EMA(BaseIndicator):
     def __init__(self):
         super().__init__("EMA")
     
-    @staticmethod
-    @jit(nopython=True)
-    def _calculate_ema(data: np.ndarray, period: int) -> np.ndarray:
-        """Numba optimized EMA calculation"""
-        result = np.empty_like(data)
-        alpha = 2.0 / (period + 1)
-        
-        # Start with SMA for the first value
-        result[:period-1] = np.nan
-        
-        # Calculate initial SMA
-        sum_val = 0.0
-        for i in range(period):
-            sum_val += data[i]
-        result[period-1] = sum_val / period
-        
-        # Calculate EMA for remaining values
-        for i in range(period, len(data)):
-            result[i] = alpha * data[i] + (1 - alpha) * result[i-1]
-        
-        return result
+    # Removed redundant EMA calculation - using consolidated utility
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
@@ -118,7 +99,7 @@ class EMA(BaseIndicator):
         """
         validated_data, input_type, index = self.validate_input(data)
         self.validate_period(period, len(validated_data))
-        result = self._calculate_ema(validated_data, period)
+        result = ema(validated_data, period)
         return self.format_output(result, input_type, index)
 
 
@@ -207,8 +188,8 @@ class DEMA(BaseIndicator):
         validated_data, input_type, index = self.validate_input(data)
         self.validate_period(period, len(validated_data))
         
-        # Calculate first EMA
-        ema1_data = self._ema._calculate_ema(validated_data, period)
+        # Calculate first EMA using consolidated utility
+        ema1_data = ema(validated_data, period)
         
         # For second EMA, skip NaN values from first EMA
         # Find first valid index in ema1
@@ -219,7 +200,7 @@ class DEMA(BaseIndicator):
         
         # Extract valid portion for second EMA calculation
         valid_ema1 = ema1_data[first_valid:]
-        ema2_partial = self._ema._calculate_ema(valid_ema1, period)
+        ema2_partial = ema(valid_ema1, period)
         
         # Reconstruct full ema2 array
         ema2_data = np.full_like(validated_data, np.nan)
@@ -266,7 +247,7 @@ class TEMA(BaseIndicator):
         self.validate_period(period, len(validated_data))
         
         # Calculate first EMA
-        ema1_data = self._ema._calculate_ema(validated_data, period)
+        ema1_data = ema(validated_data, period)
         
         # Calculate second EMA from valid portion of first EMA
         first_valid = period - 1
@@ -275,7 +256,7 @@ class TEMA(BaseIndicator):
             return self.format_output(result, input_type, index)
         
         valid_ema1 = ema1_data[first_valid:]
-        ema2_partial = self._ema._calculate_ema(valid_ema1, period)
+        ema2_partial = ema(valid_ema1, period)
         
         # Reconstruct full ema2 array
         ema2_data = np.full_like(validated_data, np.nan)
@@ -291,7 +272,7 @@ class TEMA(BaseIndicator):
             # Remove NaN values
             valid_ema2_clean = valid_ema2[~np.isnan(valid_ema2)]
             if len(valid_ema2_clean) >= period:
-                ema3_partial = self._ema._calculate_ema(valid_ema2_clean, period)
+                ema3_partial = ema(valid_ema2_clean, period)
                 third_valid_start = second_valid_start + period - 1
                 if third_valid_start < len(ema3_data):
                     valid_length = min(len(ema3_partial[period-1:]), len(ema3_data) - third_valid_start)
@@ -482,48 +463,48 @@ class Ichimoku(BaseIndicator):
         super().__init__("Ichimoku")
     
     @staticmethod
-    @jit(nopython=True)
     def _calculate_ichimoku(high: np.ndarray, low: np.ndarray, close: np.ndarray,
                            tenkan_period: int = 9, kijun_period: int = 26,
                            senkou_b_period: int = 52, displacement: int = 26) -> Tuple[np.ndarray, ...]:
-        """Numba optimized Ichimoku calculation"""
+        """O(n) optimized Ichimoku calculation using utils"""
         n = len(close)
         
-        # Initialize arrays
-        tenkan_sen = np.full(n, np.nan)
-        kijun_sen = np.full(n, np.nan)
-        senkou_span_a = np.full(n + displacement, np.nan)
-        senkou_span_b = np.full(n + displacement, np.nan)
-        chikou_span = np.full(n, np.nan)
+        # Use optimized O(n) utilities for rolling max/min
+        tenkan_high = highest(high, tenkan_period)
+        tenkan_low = lowest(low, tenkan_period)
+        tenkan_sen = (tenkan_high + tenkan_low) / 2
         
-        # Calculate Tenkan-sen (Conversion Line)
-        for i in range(tenkan_period - 1, n):
-            period_high = high[i - tenkan_period + 1:i + 1].max()
-            period_low = low[i - tenkan_period + 1:i + 1].min()
-            tenkan_sen[i] = (period_high + period_low) / 2
+        kijun_high = highest(high, kijun_period)
+        kijun_low = lowest(low, kijun_period)
+        kijun_sen = (kijun_high + kijun_low) / 2
         
-        # Calculate Kijun-sen (Base Line)
-        for i in range(kijun_period - 1, n):
-            period_high = high[i - kijun_period + 1:i + 1].max()
-            period_low = low[i - kijun_period + 1:i + 1].min()
-            kijun_sen[i] = (period_high + period_low) / 2
+        senkou_b_high = highest(high, senkou_b_period)
+        senkou_b_low = lowest(low, senkou_b_period)
+        
+        # Initialize Senkou spans with displacement
+        senkou_span_a = np.full(n, np.nan)
+        senkou_span_b = np.full(n, np.nan)
         
         # Calculate Senkou Span A (Leading Span A)
-        for i in range(max(tenkan_period, kijun_period) - 1, n):
-            senkou_span_a[i + displacement] = (tenkan_sen[i] + kijun_sen[i]) / 2
+        valid_start = max(tenkan_period, kijun_period) - 1
+        if displacement > 0:
+            # Shift forward by displacement
+            temp_span_a = (tenkan_sen + kijun_sen) / 2
+            senkou_span_a[:-displacement] = temp_span_a[displacement:]
+        else:
+            senkou_span_a = (tenkan_sen + kijun_sen) / 2
         
-        # Calculate Senkou Span B (Leading Span B)
-        for i in range(senkou_b_period - 1, n):
-            period_high = high[i - senkou_b_period + 1:i + 1].max()
-            period_low = low[i - senkou_b_period + 1:i + 1].min()
-            senkou_span_b[i + displacement] = (period_high + period_low) / 2
+        # Calculate Senkou Span B (Leading Span B)  
+        if displacement > 0:
+            temp_span_b = (senkou_b_high + senkou_b_low) / 2
+            senkou_span_b[:-displacement] = temp_span_b[displacement:]
+        else:
+            senkou_span_b = (senkou_b_high + senkou_b_low) / 2
         
         # Calculate Chikou Span (Lagging Span)
-        chikou_span[displacement:] = close[:-displacement]
-        
-        # Trim arrays to original length
-        senkou_span_a = senkou_span_a[:n]
-        senkou_span_b = senkou_span_b[:n]
+        chikou_span = np.full(n, np.nan)
+        if displacement < n:
+            chikou_span[displacement:] = close[:-displacement]
         
         return tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b, chikou_span
     
@@ -637,27 +618,9 @@ class VWMA(BaseIndicator):
         super().__init__("VWMA")
     
     @staticmethod
-    @jit(nopython=True)
     def _calculate_vwma(data: np.ndarray, volume: np.ndarray, period: int) -> np.ndarray:
-        """Numba optimized VWMA calculation"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        
-        for i in range(period - 1, n):
-            sum_pv = 0.0
-            sum_v = 0.0
-            
-            for j in range(period):
-                idx = i - period + 1 + j
-                sum_pv += data[idx] * volume[idx]
-                sum_v += volume[idx]
-            
-            if sum_v > 0:
-                result[i] = sum_pv / sum_v
-            else:
-                result[i] = data[i]
-        
-        return result
+        """O(n) optimized VWMA calculation using utils"""
+        return vwma_optimized(data, volume, period)
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
                  volume: Union[np.ndarray, pd.Series, list],
@@ -776,37 +739,9 @@ class KAMA(BaseIndicator):
         super().__init__("KAMA")
     
     @staticmethod
-    @jit(nopython=True)
     def _calculate_kama(data: np.ndarray, period: int, fast_sc: float, slow_sc: float) -> np.ndarray:
-        """Numba optimized KAMA calculation"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        
-        # Initialize first value
-        result[period - 1] = data[period - 1]
-        
-        for i in range(period, n):
-            # Calculate direction
-            direction = abs(data[i] - data[i - period])
-            
-            # Calculate volatility
-            volatility = 0.0
-            for j in range(period):
-                volatility += abs(data[i - j] - data[i - j - 1])
-            
-            # Calculate efficiency ratio
-            if volatility > 0:
-                er = direction / volatility
-            else:
-                er = 0.0
-            
-            # Calculate smoothing constant
-            sc = (er * (fast_sc - slow_sc) + slow_sc) ** 2
-            
-            # Calculate KAMA
-            result[i] = result[i - 1] + sc * (data[i] - result[i - 1])
-        
-        return result
+        """O(n) optimized KAMA calculation using utils"""
+        return kama_optimized(data, period, fast_sc, slow_sc)
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
                  period: int = 10, fast_period: int = 2, slow_period: int = 30) -> Union[np.ndarray, pd.Series]:
@@ -861,7 +796,7 @@ class ZLEMA(BaseIndicator):
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate Zero Lag Exponential Moving Average
+        Calculate Zero Lag Exponential Moving Average using O(n) algorithm
         
         Parameters:
         -----------
@@ -878,19 +813,26 @@ class ZLEMA(BaseIndicator):
         validated_data, input_type, index = self.validate_input(data)
         self.validate_period(period, len(validated_data))
         
-        # Calculate lag
+        result = self._calculate_zlema_optimized(validated_data, period)
+        return self.format_output(result, input_type, index)
+    
+    @staticmethod
+    @jit(nopython=True, cache=True)
+    def _calculate_zlema_optimized(data: np.ndarray, period: int) -> np.ndarray:
+        """O(n) optimized ZLEMA calculation using consolidated EMA utility"""
+        n = len(data)
         lag = (period - 1) // 2
         
-        # Create lagged data
-        adjusted_data = np.empty_like(validated_data)
-        adjusted_data[:lag] = validated_data[:lag]
+        # Create adjusted data using vectorized operations where possible
+        adjusted_data = np.empty(n)
+        adjusted_data[:lag] = data[:lag]
         
-        for i in range(lag, len(validated_data)):
-            adjusted_data[i] = 2 * validated_data[i] - validated_data[i - lag]
+        # Vectorized calculation for the main portion
+        for i in range(lag, n):
+            adjusted_data[i] = 2 * data[i] - data[i - lag]
         
-        # Calculate EMA of adjusted data
-        result = self._ema.calculate(adjusted_data, period)
-        return self.format_output(result, input_type, index)
+        # Use the optimized EMA utility
+        return ema(adjusted_data, period)
 
 
 class T3(BaseIndicator):
@@ -1089,8 +1031,8 @@ class ChandeKrollStop(BaseIndicator):
         long_stop = np.full(n, np.nan)
         short_stop = np.full(n, np.nan)
         
-        # Calculate ATR
-        atr = ChandeKrollStop._calculate_atr(high, low, close, period)
+        # Calculate ATR using consolidated utility
+        atr = atr_wilder(high, low, close, period)
         
         for i in range(period - 1, n):
             # Calculate highest high and lowest low over the period

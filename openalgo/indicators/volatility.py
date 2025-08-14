@@ -5,9 +5,11 @@ OpenAlgo Technical Indicators - Volatility Indicators
 
 import numpy as np
 import pandas as pd
-from numba import jit
+from openalgo.numba_shim import jit
 from typing import Union, Tuple, Optional
 from .base import BaseIndicator
+from .utils import (ema, atr_wilder, true_range, sma, stdev, highest, lowest, 
+                    rolling_sum, ulcer_index_optimized)
 
 
 class ATR(BaseIndicator):
@@ -25,38 +27,7 @@ class ATR(BaseIndicator):
     def __init__(self):
         super().__init__("ATR")
     
-    @staticmethod
-    @jit(nopython=True)
-    def _calculate_atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, 
-                      period: int) -> np.ndarray:
-        """Numba optimized ATR calculation"""
-        n = len(high)
-        tr = np.empty(n)
-        atr = np.full(n, np.nan)
-        
-        # First TR value
-        tr[0] = high[0] - low[0]
-        
-        # Calculate True Range
-        for i in range(1, n):
-            hl = high[i] - low[i]
-            hc = abs(high[i] - close[i-1])
-            lc = abs(low[i] - close[i-1])
-            tr[i] = max(hl, hc, lc)
-        
-        # Calculate ATR using Wilder's smoothing
-        if n >= period:
-            # Initial ATR is simple average
-            sum_tr = 0.0
-            for i in range(period):
-                sum_tr += tr[i]
-            atr[period-1] = sum_tr / period
-            
-            # Subsequent ATR values use Wilder's smoothing
-            for i in range(period, n):
-                atr[i] = (atr[i-1] * (period - 1) + tr[i]) / period
-        
-        return atr
+    # Removed redundant ATR calculation - using consolidated utility
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
@@ -89,7 +60,7 @@ class ATR(BaseIndicator):
         high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         self.validate_period(period, len(close_data))
         
-        result = self._calculate_atr(high_data, low_data, close_data, period)
+        result = atr_wilder(high_data, low_data, close_data, period)
         return self.format_output(result, input_type, index)
 
 
@@ -110,31 +81,16 @@ class BollingerBands(BaseIndicator):
         super().__init__("Bollinger Bands")
     
     @staticmethod
-    @jit(nopython=True)
     def _calculate_bollinger_bands(data: np.ndarray, period: int, 
                                   std_dev: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Numba optimized Bollinger Bands calculation"""
-        n = len(data)
-        upper = np.full(n, np.nan)
-        middle = np.full(n, np.nan)
-        lower = np.full(n, np.nan)
+        """O(n) optimized Bollinger Bands calculation using utils"""
+        # Use optimized O(n) utilities
+        middle = sma(data, period)
+        std_values = stdev(data, period)
         
-        for i in range(period - 1, n):
-            # Calculate SMA (middle band)
-            window_data = data[i - period + 1:i + 1]
-            sma = np.mean(window_data)
-            middle[i] = sma
-            
-            # Calculate standard deviation
-            variance = 0.0
-            for j in range(period):
-                diff = window_data[j] - sma
-                variance += diff * diff
-            std = np.sqrt(variance / period)
-            
-            # Calculate upper and lower bands
-            upper[i] = sma + (std_dev * std)
-            lower[i] = sma - (std_dev * std)
+        # Calculate upper and lower bands
+        upper = middle + (std_dev * std_values)
+        lower = middle - (std_dev * std_values)
         
         return upper, middle, lower
     
@@ -320,24 +276,15 @@ class Donchian(BaseIndicator):
         super().__init__("Donchian Channel")
     
     @staticmethod
-    @jit(nopython=True)
     def _calculate_donchian_channel(high: np.ndarray, low: np.ndarray, 
                                    period: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Numba optimized Donchian Channel calculation"""
-        n = len(high)
-        upper = np.full(n, np.nan)
-        lower = np.full(n, np.nan)
-        middle = np.full(n, np.nan)
+        """O(n) optimized Donchian Channel calculation using utils"""
+        # Use optimized O(n) deque-based utilities
+        upper = highest(high, period)
+        lower = lowest(low, period)
         
-        for i in range(period - 1, n):
-            # Highest high over period
-            upper[i] = high[i - period + 1:i + 1].max()
-            
-            # Lowest low over period
-            lower[i] = low[i - period + 1:i + 1].min()
-            
-            # Middle line
-            middle[i] = (upper[i] + lower[i]) / 2.0
+        # Calculate middle line
+        middle = (upper + lower) / 2.0
         
         return upper, middle, lower
     
@@ -488,13 +435,8 @@ class NATR(BaseIndicator):
         # Calculate ATR
         atr = self._atr.calculate(high, low, close, period)
         
-        # Calculate NATR
-        natr = np.empty_like(atr)
-        for i in range(len(atr)):
-            if close_data[i] != 0:
-                natr[i] = (atr[i] / close_data[i]) * 100
-            else:
-                natr[i] = 0
+        # Calculate NATR using vectorized operations (O(n) optimization)
+        natr = np.where(close_data != 0, (atr / close_data) * 100, 0)
         
         return self.format_output(natr, input_type, index)
 
@@ -512,24 +454,9 @@ class RVI(BaseIndicator):
         super().__init__("RVI")
     
     @staticmethod
-    @jit(nopython=True)
     def _calculate_stdev(data: np.ndarray, period: int) -> np.ndarray:
-        """Calculate rolling standard deviation"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        
-        for i in range(period - 1, n):
-            window = data[i - period + 1:i + 1]
-            mean_val = np.mean(window)
-            
-            variance = 0.0
-            for j in range(period):
-                diff = window[j] - mean_val
-                variance += diff * diff
-            
-            result[i] = np.sqrt(variance / period)
-        
-        return result
+        """O(n) optimized standard deviation using utils"""
+        return stdev(data, period)
     
     @staticmethod
     @jit(nopython=True)
@@ -1255,28 +1182,9 @@ class UlcerIndex(BaseIndicator):
         super().__init__("Ulcer Index")
     
     @staticmethod
-    @jit(nopython=True)
     def _calculate_ulcer_index(data: np.ndarray, period: int) -> np.ndarray:
-        """Numba optimized Ulcer Index calculation"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        
-        for i in range(period - 1, n):
-            sum_squared_drawdown = 0.0
-            
-            for j in range(period):
-                idx = i - period + 1 + j
-                
-                # Find maximum value from start of period to current point
-                max_value = np.max(data[i - period + 1:idx + 1])
-                
-                if max_value > 0:
-                    drawdown = (data[idx] - max_value) / max_value
-                    sum_squared_drawdown += drawdown * drawdown
-            
-            result[i] = np.sqrt(sum_squared_drawdown / period) * 100
-        
-        return result
+        """Optimized Ulcer Index calculation using utils"""
+        return ulcer_index_optimized(data, period)
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
                  period: int = 14) -> Union[np.ndarray, pd.Series]:

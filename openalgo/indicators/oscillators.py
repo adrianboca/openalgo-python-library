@@ -5,9 +5,10 @@ OpenAlgo Technical Indicators - Oscillators
 
 import numpy as np
 import pandas as pd
-from numba import jit
+from openalgo.numba_shim import jit
 from typing import Union, Tuple, Optional
 from .base import BaseIndicator
+from .utils import sma, ema, highest, lowest, rolling_sum, true_range, cmo_optimized
 
 
 class ROC(BaseIndicator):
@@ -1067,39 +1068,28 @@ class CHOP(BaseIndicator):
         return atr_sum
     
     @staticmethod
-    @jit(nopython=True)
     def _calculate_chop(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
-        """Numba optimized CHOP calculation"""
-        n = len(close)
-        result = np.full(n, np.nan)
+        """O(n) optimized CHOP calculation using utils"""
+        # Use optimized O(n) utilities
+        tr = true_range(high, low, close)
+        atr_sum = rolling_sum(tr, period)
+        highest_high = highest(high, period)
+        lowest_low = lowest(low, period)
         
-        # Calculate sum of ATR inline
-        atr_sum = np.full(n, np.nan)
+        # Calculate range
+        range_val = highest_high - lowest_low
         
-        # Calculate True Range for each bar
-        tr = np.full(n, np.nan)
-        tr[0] = high[0] - low[0]
+        # Calculate CHOP
+        result = np.full(len(high), np.nan)
+        valid_mask = (range_val > 0) & (atr_sum > 0) & ~np.isnan(range_val) & ~np.isnan(atr_sum)
         
-        for j in range(1, n):
-            tr[j] = max(high[j] - low[j], 
-                       abs(high[j] - close[j - 1]), 
-                       abs(low[j] - close[j - 1]))
+        if period > 1:  # Avoid log10(1) = 0 division
+            log_period = np.log10(period)
+            result[valid_mask] = 100 * np.log10(atr_sum[valid_mask] / range_val[valid_mask]) / log_period
         
-        # Calculate sum of ATR
-        for j in range(period - 1, n):
-            atr_sum[j] = np.sum(tr[j - period + 1:j + 1])
-        
-        for i in range(period - 1, n):
-            # Calculate highest high and lowest low over period
-            highest_high = np.max(high[i - period + 1:i + 1])
-            lowest_low = np.min(low[i - period + 1:i + 1])
-            
-            range_val = highest_high - lowest_low
-            
-            if range_val > 0 and atr_sum[i] > 0:
-                result[i] = 100 * np.log10(atr_sum[i] / range_val) / np.log10(period)
-            else:
-                result[i] = 50.0  # Default middle value
+        # Set default middle value where calculation is invalid
+        invalid_mask = ~valid_mask & ~np.isnan(atr_sum)
+        result[invalid_mask] = 50.0
         
         return result
     
