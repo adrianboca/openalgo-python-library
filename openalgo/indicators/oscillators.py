@@ -746,8 +746,44 @@ class StochRSI(BaseIndicator):
     @jit(nopython=True)
     def _calculate_stochrsi(data: np.ndarray, rsi_period: int, stoch_period: int, k_period: int, d_period: int) -> Tuple[np.ndarray, np.ndarray]:
         """Numba optimized Stochastic RSI calculation"""
-        # Calculate RSI
-        rsi = StochRSI._calculate_rsi(data, rsi_period)
+        # Calculate RSI inline
+        n_data = len(data)
+        rsi = np.full(n_data, np.nan)
+        
+        if n_data < rsi_period + 1:
+            return rsi, rsi
+        
+        # Calculate price changes
+        deltas = np.diff(data)
+        
+        # Separate gains and losses
+        gains = np.where(deltas > 0, deltas, 0)
+        losses = np.where(deltas < 0, -deltas, 0)
+        
+        # Calculate initial average gain and loss
+        avg_gain = np.mean(gains[:rsi_period])
+        avg_loss = np.mean(losses[:rsi_period])
+        
+        # Calculate first RSI value
+        if avg_loss == 0:
+            rsi[rsi_period] = 100.0
+        else:
+            rs = avg_gain / avg_loss
+            rsi[rsi_period] = 100.0 - (100.0 / (1.0 + rs))
+        
+        # Calculate subsequent RSI values using Wilder's smoothing
+        for i in range(rsi_period, n_data - 1):
+            gain = gains[i] if i < len(gains) else 0
+            loss = losses[i] if i < len(losses) else 0
+            
+            avg_gain = (avg_gain * (rsi_period - 1) + gain) / rsi_period
+            avg_loss = (avg_loss * (rsi_period - 1) + loss) / rsi_period
+            
+            if avg_loss == 0:
+                rsi[i + 1] = 100.0
+            else:
+                rs = avg_gain / avg_loss
+                rsi[i + 1] = 100.0 - (100.0 / (1.0 + rs))
         
         n = len(rsi)
         stoch_rsi = np.full(n, np.nan)
@@ -898,7 +934,7 @@ class RVI(BaseIndicator):
         return self.format_multiple_outputs(results, input_type, index)
 
 
-class ChaikinOscillator(BaseIndicator):
+class CHO(BaseIndicator):
     """
     Chaikin Oscillator (Chaikin A/D Oscillator)
     
@@ -1037,8 +1073,21 @@ class CHOP(BaseIndicator):
         n = len(close)
         result = np.full(n, np.nan)
         
+        # Calculate sum of ATR inline
+        atr_sum = np.full(n, np.nan)
+        
+        # Calculate True Range for each bar
+        tr = np.full(n, np.nan)
+        tr[0] = high[0] - low[0]
+        
+        for j in range(1, n):
+            tr[j] = max(high[j] - low[j], 
+                       abs(high[j] - close[j - 1]), 
+                       abs(low[j] - close[j - 1]))
+        
         # Calculate sum of ATR
-        atr_sum = CHOP._calculate_atr_sum(high, low, close, period)
+        for j in range(period - 1, n):
+            atr_sum[j] = np.sum(tr[j - period + 1:j + 1])
         
         for i in range(period - 1, n):
             # Calculate highest high and lowest low over period

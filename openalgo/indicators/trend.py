@@ -1203,7 +1203,7 @@ class TRIMA(BaseIndicator):
         return self.format_output(result, input_type, index)
 
 
-class McGinleyDynamic(BaseIndicator):
+class McGinley(BaseIndicator):
     """
     McGinley Dynamic
     
@@ -1308,8 +1308,25 @@ class VIDYA(BaseIndicator):
         n = len(data)
         result = np.full(n, np.nan)
         
-        # Calculate CMO
-        cmo = VIDYA._calculate_cmo(data, period)
+        # Calculate CMO inline
+        cmo = np.full(n, np.nan)
+        
+        for i in range(period, n):
+            gains = 0.0
+            losses = 0.0
+            
+            for j in range(i - period + 1, i + 1):
+                if j > 0:
+                    diff = data[j] - data[j - 1]
+                    if diff > 0:
+                        gains += diff
+                    elif diff < 0:
+                        losses += abs(diff)
+            
+            if gains + losses != 0:
+                cmo[i] = 100 * (gains - losses) / (gains + losses)
+            else:
+                cmo[i] = 0.0
         
         # Initialize with first valid data point
         result[period] = data[period]

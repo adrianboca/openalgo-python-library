@@ -414,7 +414,7 @@ class WilliamsR(BaseIndicator):
         return self.format_output(result, input_type, index)
 
 
-class BalanceOfPower(BaseIndicator):
+class BOP(BaseIndicator):
     """
     Balance of Power (BOP)
     
@@ -476,7 +476,7 @@ class BalanceOfPower(BaseIndicator):
         return self.format_output(result, input_type, index)
 
 
-class ElderRayIndex(BaseIndicator):
+class ElderRay(BaseIndicator):
     """
     Elder Ray Index (Bull/Bear Power)
     
@@ -544,7 +544,7 @@ class ElderRayIndex(BaseIndicator):
         return self.format_multiple_outputs(results, input_type, index)
 
 
-class FisherTransform(BaseIndicator):
+class Fisher(BaseIndicator):
     """
     Fisher Transform
     
@@ -616,7 +616,7 @@ class FisherTransform(BaseIndicator):
         return self.format_multiple_outputs(results, input_type, index)
 
 
-class ConnorsRSI(BaseIndicator):
+class CRSI(BaseIndicator):
     """
     Connors RSI (CRSI)
     

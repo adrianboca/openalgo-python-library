@@ -10,7 +10,7 @@ from typing import Union, Tuple, Optional
 from .base import BaseIndicator
 
 
-class LINEARREG(BaseIndicator):
+class LINREG(BaseIndicator):
     """
     Linear Regression
     
@@ -76,7 +76,7 @@ class LINEARREG(BaseIndicator):
         return self.format_output(result, input_type, index)
 
 
-class LINEARREG_SLOPE(BaseIndicator):
+class LRSLOPE(BaseIndicator):
     """
     Linear Regression Slope
     

@@ -476,7 +476,7 @@ class PSAR(BaseIndicator):
             return results[0]
 
 
-class HT_TRENDLINE(BaseIndicator):
+class HT(BaseIndicator):
     """
     Hilbert Transform - Instantaneous Trendline
     
@@ -688,7 +688,7 @@ class WilliamsFractals(BaseIndicator):
         return self.format_multiple_outputs(results, input_type, index)
 
 
-class RandomWalkIndex(BaseIndicator):
+class RWI(BaseIndicator):
     """
     Random Walk Index (RWI High/Low)
     
@@ -725,14 +725,47 @@ class RandomWalkIndex(BaseIndicator):
     
     @staticmethod
     @jit(nopython=True)
+    def _calculate_atr_for_rwi(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
+        """Calculate ATR for RWI"""
+        n = len(close)
+        tr = np.full(n, np.nan)
+        atr = np.full(n, np.nan)
+        
+        # Calculate True Range
+        tr[0] = high[0] - low[0]
+        for i in range(1, n):
+            tr[i] = max(high[i] - low[i], 
+                       abs(high[i] - close[i - 1]), 
+                       abs(low[i] - close[i - 1]))
+        
+        # Calculate ATR using simple moving average
+        for i in range(period - 1, n):
+            atr[i] = np.mean(tr[i - period + 1:i + 1])
+        
+        return atr
+    
+    @staticmethod
+    @jit(nopython=True)
     def _calculate_rwi(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> Tuple[np.ndarray, np.ndarray]:
         """Numba optimized RWI calculation"""
         n = len(close)
         rwi_high = np.full(n, np.nan)
         rwi_low = np.full(n, np.nan)
         
-        # Calculate ATR
-        atr = RandomWalkIndex._calculate_atr(high, low, close, period)
+        # Calculate ATR inline
+        tr = np.full(n, np.nan)
+        atr = np.full(n, np.nan)
+        
+        # Calculate True Range
+        tr[0] = high[0] - low[0]
+        for i in range(1, n):
+            tr[i] = max(high[i] - low[i], 
+                       abs(high[i] - close[i - 1]), 
+                       abs(low[i] - close[i - 1]))
+        
+        # Calculate ATR using simple moving average
+        for i in range(period - 1, n):
+            atr[i] = np.mean(tr[i - period + 1:i + 1])
         
         for i in range(period - 1, n):
             if atr[i] > 0:

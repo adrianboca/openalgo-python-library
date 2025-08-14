@@ -191,7 +191,7 @@ def _calculate_ema_keltner(data: np.ndarray, period: int) -> np.ndarray:
     return ema
 
 
-class KeltnerChannel(BaseIndicator):
+class Keltner(BaseIndicator):
     """
     Keltner Channel
     
@@ -303,7 +303,7 @@ class KeltnerChannel(BaseIndicator):
         return self.format_multiple_outputs(results, input_type, index)
 
 
-class DonchianChannel(BaseIndicator):
+class Donchian(BaseIndicator):
     """
     Donchian Channel
     
@@ -372,7 +372,7 @@ class DonchianChannel(BaseIndicator):
         return self.format_multiple_outputs(results, input_type, index)
 
 
-class ChaikinVolatility(BaseIndicator):
+class Chaikin(BaseIndicator):
     """
     Chaikin Volatility
     
@@ -905,7 +905,7 @@ class MASS(BaseIndicator):
         return self.format_output(result, input_type, index)
 
 
-class BollingerBandsPercentB(BaseIndicator):
+class BBPercent(BaseIndicator):
     """
     Bollinger Bands %B
     
@@ -985,7 +985,7 @@ class BollingerBandsPercentB(BaseIndicator):
         return self.format_output(percent_b, input_type, index)
 
 
-class BollingerBandwidth(BaseIndicator):
+class BBWidth(BaseIndicator):
     """
     Bollinger Bandwidth
     
@@ -1109,8 +1109,21 @@ class ChandelierExit(BaseIndicator):
         long_exit = np.full(n, np.nan)
         short_exit = np.full(n, np.nan)
         
-        # Calculate ATR
-        atr = ChandelierExit._calculate_atr(high, low, close, period)
+        # Calculate ATR inline
+        tr = np.full(n, np.nan)
+        atr = np.full(n, np.nan)
+        
+        # Calculate True Range
+        tr[0] = high[0] - low[0]
+        for j in range(1, n):
+            hl = high[j] - low[j]
+            hc = abs(high[j] - close[j - 1])
+            lc = abs(low[j] - close[j - 1])
+            tr[j] = max(hl, hc, lc)
+        
+        # Calculate ATR using SMA
+        for j in range(period - 1, n):
+            atr[j] = np.mean(tr[j - period + 1:j + 1])
         
         for i in range(period - 1, n):
             # Highest high and lowest low over period
@@ -1289,7 +1302,7 @@ class UlcerIndex(BaseIndicator):
         return self.format_output(result, input_type, index)
 
 
-class STARCBands(BaseIndicator):
+class STARC(BaseIndicator):
     """
     STARC Bands (Stoller Channels)
     

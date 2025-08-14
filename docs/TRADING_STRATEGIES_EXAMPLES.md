@@ -391,7 +391,7 @@ class MomentumRotation:
             roc_60 = ta.roc(prices, 60)[-1]
             
             # Trend strength
-            adx_plus, adx_minus, adx = ta.adx_system(
+            adx_plus, adx_minus, adx = ta.adx(
                 prices * 1.01, prices * 0.99, prices, 14)
             trend_strength = adx[-1] if not np.isnan(adx[-1]) else 0
             
@@ -445,7 +445,7 @@ class VolatilityBreakout:
         lowest = ta.lowest(low, self.channel_period)
         
         # Keltner Channels for volatility assessment
-        kc_upper, kc_middle, kc_lower = ta.keltner_channel(
+        kc_upper, kc_middle, kc_lower = ta.keltner(
             high, low, close, 20, self.atr_period, 2)
         
         signals = []
@@ -880,7 +880,7 @@ class MLFeatureEngineering:
         
         # Volume features
         features['volume_ratio'] = volume / ta.sma(volume, 20)
-        features['obv_slope'] = ta.linear_regression_slope(ta.obv(close, volume), 20)
+        features['obv_slope'] = ta.lrslope(ta.obv(close, volume), 20)
         features['mfi_14'] = ta.mfi(high, low, close, volume, 14) / 100
         
         # Market microstructure

@@ -60,21 +60,21 @@ import numpy as np
 |-----------|----------|------------|---------|---------|
 | ATR | `ta.atr(high, low, close, period)` | high, low, close, period=14 | Array | `atr_14 = ta.atr(h, l, c, 14)` |
 | Bollinger Bands | `ta.bbands(data, period, std)` | data, period=20, std_dev=2 | (upper, middle, lower) | `u, m, l = ta.bbands(close, 20, 2)` |
-| Keltner Channel | `ta.keltner_channel(h, l, c, ema, atr, mult)` | high, low, close, ema=20, atr=10, mult=2 | (upper, middle, lower) | `u, m, l = ta.keltner_channel(h, l, c)` |
-| Donchian Channel | `ta.donchian_channel(high, low, period)` | high, low, period=20 | (upper, middle, lower) | `u, m, l = ta.donchian_channel(h, l, 20)` |
-| Chaikin Volatility | `ta.chaikin_volatility(h, l, ema, roc)` | high, low, ema=10, roc=10 | Array | `cv = ta.chaikin_volatility(h, l, 10, 10)` |
+| Keltner Channel | `ta.keltner(h, l, c, ema, atr, mult)` | high, low, close, ema=20, atr=10, mult=2 | (upper, middle, lower) | `u, m, l = ta.keltner(h, l, c)` |
+| Donchian Channel | `ta.donchian(high, low, period)` | high, low, period=20 | (upper, middle, lower) | `u, m, l = ta.donchian(h, l, 20)` |
+| Chaikin Volatility | `ta.chaikin(h, l, ema, roc)` | high, low, ema=10, roc=10 | Array | `cv = ta.chaikin(h, l, 10, 10)` |
 | NATR | `ta.natr(high, low, close, period)` | high, low, close, period=14 | Array (%) | `natr = ta.natr(h, l, c, 14)` |
-| RVI | `ta.rvi_volatility(data, std, rsi)` | data, stdev_period=10, rsi_period=14 | Array | `rvi = ta.rvi_volatility(close, 10, 14)` |
+| RVI | `ta.rvol(data, std, rsi)` | data, stdev_period=10, rsi_period=14 | Array | `rvi = ta.rvol(close, 10, 14)` |
 | Ultimate Oscillator | `ta.ultimate_oscillator(h, l, c, p1, p2, p3)` | high, low, close, p1=7, p2=14, p3=28 | Array | `uo = ta.ultimate_oscillator(h, l, c)` |
 | Standard Deviation | `ta.stddev(data, period)` | data, period=20 | Array | `std = ta.stddev(close, 20)` |
 | True Range | `ta.true_range(high, low, close)` | high, low, close | Array | `tr = ta.true_range(h, l, c)` |
-| Mass Index | `ta.mass_index(high, low, fast, slow)` | high, low, fast=9, slow=25 | Array | `mi = ta.mass_index(h, l, 9, 25)` |
-| Bollinger %B | `ta.bb_percent_b(data, period=20, std_dev=2.0)` | 🔴 data, 🟢 period=20, 🟢 std_dev=2.0 | Array | `bb_pct_b = ta.bb_percent_b(close)` |
-| Bollinger Bandwidth | `ta.bb_bandwidth(data, period=20, std_dev=2.0)` | 🔴 data, 🟢 period=20, 🟢 std_dev=2.0 | Array | `bb_bw = ta.bb_bandwidth(close)` |
+| Mass Index | `ta.massindex(high, low, fast, slow)` | high, low, fast=9, slow=25 | Array | `mi = ta.massindex(h, l, 9, 25)` |
+| Bollinger %B | `ta.bbpercent(data, period=20, std_dev=2.0)` | 🔴 data, 🟢 period=20, 🟢 std_dev=2.0 | Array | `bb_pct_b = ta.bbpercent(close)` |
+| Bollinger Bandwidth | `ta.bbwidth(data, period=20, std_dev=2.0)` | 🔴 data, 🟢 period=20, 🟢 std_dev=2.0 | Array | `bb_bw = ta.bbwidth(close)` |
 | Chandelier Exit | `ta.chandelier_exit(h, l, c, period=22, mult=3.0)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=22, 🟢 mult=3.0 | (long_exit, short_exit) | `le, se = ta.chandelier_exit(h, l, c)` |
 | Historical Volatility | `ta.hv(data, period=20, annualize=True)` | 🔴 data, 🟢 period=20, 🟢 annualize=True | Array (%) | `hv = ta.hv(close)` |
-| Ulcer Index | `ta.ulcer_index(data, period=14)` | 🔴 data, 🟢 period=14 | Array | `ui = ta.ulcer_index(close)` |
-| STARC Bands | `ta.starc_bands(h, l, c, ma=20, atr=15, mult=2.0)` | 🔴 high, 🔴 low, 🔴 close, 🟢 ma=20, 🟢 atr=15, 🟢 mult=2.0 | (upper, middle, lower) | `u, m, l = ta.starc_bands(h, l, c)` |
+| Ulcer Index | `ta.ulcerindex(data, period=14)` | 🔴 data, 🟢 period=14 | Array | `ui = ta.ulcerindex(close)` |
+| STARC Bands | `ta.starc(h, l, c, ma=20, atr=15, mult=2.0)` | 🔴 high, 🔴 low, 🔴 close, 🟢 ma=20, 🟢 atr=15, 🟢 mult=2.0 | (upper, middle, lower) | `u, m, l = ta.starc(h, l, c)` |
 
 ### 📉 Volume Indicators (13)
 
@@ -89,7 +89,7 @@ import numpy as np
 | Force Index | `ta.force_index(close, volume)` | close, volume | Array | `fi = ta.force_index(close, volume)` |
 | NVI | `ta.nvi(close, volume)` | close, volume | Array | `nvi = ta.nvi(close, volume)` |
 | PVI | `ta.pvi(close, volume)` | close, volume | Array | `pvi = ta.pvi(close, volume)` |
-| Volume Oscillator | `ta.volume_oscillator(v, fast, slow)` | volume, fast=5, slow=10 | Array (%) | `vo = ta.volume_oscillator(v, 5, 10)` |
+| Volume Oscillator | `ta.volosc(v, fast, slow)` | volume, fast=5, slow=10 | Array (%) | `vo = ta.volosc(v, 5, 10)` |
 | Volume ROC | `ta.vroc(volume, period)` | volume, period=25 | Array (%) | `vroc = ta.vroc(volume, 25)` |
 | Klinger Volume Osc | `ta.kvo(h, l, c, v, fast=34, slow=55)` | 🔴 high, 🔴 low, 🔴 close, 🔴 volume, 🟢 fast=34, 🟢 slow=55 | Array | `kvo = ta.kvo(h, l, c, v)` |
 | Price Volume Trend | `ta.pvt(close, volume)` | 🔴 close, 🔴 volume | Array | `pvt = ta.pvt(close, volume)` |
@@ -105,7 +105,7 @@ import numpy as np
 | Awesome Oscillator | `ta.awesome_oscillator(h, l, fast, slow)` | high, low, fast=5, slow=34 | Array | `ao = ta.awesome_oscillator(h, l)` |
 | Accelerator Osc | `ta.accelerator_oscillator(h, l, period)` | high, low, period=5 | Array | `ac = ta.accelerator_oscillator(h, l)` |
 | PPO | `ta.ppo(data, fast, slow, signal)` | data, fast=12, slow=26, signal=9 | (ppo, signal, hist) | `p, s, h = ta.ppo(close)` |
-| Price Oscillator | `ta.price_oscillator(data, fast, slow, type)` | data, fast=10, slow=20, ma_type="SMA" | Array | `po = ta.price_oscillator(close)` |
+| Price Oscillator | `ta.po(data, fast, slow, type)` | data, fast=10, slow=20, ma_type="SMA" | Array | `po = ta.po(close)` |
 | DPO | `ta.dpo(data, period)` | data, period=20 | Array | `dpo = ta.dpo(close, 20)` |
 | Aroon Oscillator | `ta.aroon_oscillator(high, low, period)` | high, low, period=25 | Array (-100 to 100) | `ao = ta.aroon_oscillator(h, l, 25)` |
 | Stochastic RSI | `ta.stochrsi(data, rsi=14, stoch=14, k=3, d=3)` | 🔴 data, 🟢 rsi=14, 🟢 stoch=14, 🟢 k=3, 🟢 d=3 | (k%, d%) | `k, d = ta.stochrsi(close)` |
@@ -115,19 +115,19 @@ import numpy as np
 | Know Sure Thing | `ta.kst(data, roc1=10, roc2=15, roc3=20, roc4=30, sma1=10, sma2=10, sma3=10, sma4=15, signal=9)` | 🔴 data, 🟢 ROC/SMA periods, 🟢 signal=9 | (kst, signal) | `kst, sig = ta.kst(close)` |
 | Schaff Trend Cycle | `ta.stc(data, fast=23, slow=50, cycle=10, smooth1=3, smooth2=3)` | 🔴 data, 🟢 fast=23, 🟢 slow=50, 🟢 cycle=10, 🟢 smooth1=3, 🟢 smooth2=3 | Array (0-100) | `stc = ta.stc(close)` |
 | True Strength Index | `ta.tsi(data, long=25, short=13, signal=13)` | 🔴 data, 🟢 long=25, 🟢 short=13, 🟢 signal=13 | (tsi, signal) | `tsi, sig = ta.tsi(close)` |
-| Vortex Indicator | `ta.vortex(high, low, close, period=14)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=14 | (vi_plus, vi_minus) | `vip, vim = ta.vortex(h, l, c)` |
-| Gator Oscillator | `ta.gator(data, jaw=13, teeth=8, lips=5)` | 🔴 data, 🟢 jaw=13, 🟢 teeth=8, 🟢 lips=5 | (upper, lower) | `u, l = ta.gator(hl2)` |
+| Vortex Indicator | `ta.vi(high, low, close, period=14)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=14 | (vi_plus, vi_minus) | `vip, vim = ta.vi(h, l, c)` |
+| Gator Oscillator | `ta.gator_oscillator(data, jaw=13, teeth=8, lips=5)` | 🔴 data, 🟢 jaw=13, 🟢 teeth=8, 🟢 lips=5 | (upper, lower) | `u, l = ta.gator_oscillator(hl2)` |
 
 ### 📐 Statistical Indicators (8)
 
 | Indicator | Function | Parameters | Returns | Example |
 |-----------|----------|------------|---------|---------|
-| Linear Regression | `ta.linear_regression(data, period)` | data, period=14 | Array | `lr = ta.linear_regression(close, 14)` |
-| LR Slope | `ta.linear_regression_slope(data, period)` | data, period=14 | Array | `slope = ta.linear_regression_slope(close, 14)` |
+| Linear Regression | `ta.linreg(data, period)` | data, period=14 | Array | `lr = ta.linreg(close, 14)` |
+| LR Slope | `ta.lrslope(data, period)` | data, period=14 | Array | `slope = ta.lrslope(close, 14)` |
 | Correlation | `ta.correlation(data1, data2, period)` | data1, data2, period=20 | Array (-1 to 1) | `corr = ta.correlation(stock1, stock2, 20)` |
 | Beta | `ta.beta(asset, market, period)` | asset, market, period=252 | Array | `beta = ta.beta(stock, market, 252)` |
 | Variance | `ta.variance(data, period)` | data, period=20 | Array | `var = ta.variance(close, 20)` |
-| TSF | `ta.time_series_forecast(data, period)` | data, period=14 | Array | `tsf = ta.time_series_forecast(close, 14)` |
+| TSF | `ta.tsf(data, period)` | data, period=14 | Array | `tsf = ta.tsf(close, 14)` |
 | Median | `ta.median(data, period)` | data, period=20 | Array | `med = ta.median(close, 20)` |
 | Mode | `ta.mode(data, period, bins)` | data, period=20, bins=10 | Array | `mode = ta.mode(close, 20, 10)` |
 
@@ -135,13 +135,13 @@ import numpy as np
 
 | Indicator | Function | Parameters | Returns | Example |
 |-----------|----------|------------|---------|---------|
-| ADX System | `ta.adx_system(h, l, c, period)` | high, low, close, period=14 | (+DI, -DI, ADX) | `p, m, adx = ta.adx_system(h, l, c, 14)` |
-| Aroon System | `ta.aroon_system(high, low, period)` | high, low, period=25 | (up, down) | `up, down = ta.aroon_system(h, l, 25)` |
+| ADX System | `ta.adx(h, l, c, period)` | high, low, close, period=14 | (+DI, -DI, ADX) | `p, m, adx = ta.adx(h, l, c, 14)` |
+| Aroon System | `ta.aroon(high, low, period)` | high, low, period=25 | (up, down) | `up, down = ta.aroon(h, l, 25)` |
 | Pivot Points | `ta.pivot_points(high, low, close)` | high, low, close | (P, R1, S1, R2, S2, R3, S3) | `p, r1, s1, r2, s2, r3, s3 = ta.pivot_points(h, l, c)` |
 | Parabolic SAR | `ta.parabolic_sar(h, l, accel, max)` | high, low, accel=0.02, max=0.2 | (values, trend) | `sar, trend = ta.parabolic_sar(h, l)` |
-| DMI | `ta.directional_movement(h, l, c, period)` | high, low, close, period=14 | (+DI, -DI) | `plus, minus = ta.directional_movement(h, l, c)` |
+| DMI | `ta.dmi(h, l, c, period)` | high, low, close, period=14 | (+DI, -DI) | `plus, minus = ta.dmi(h, l, c)` |
 | PSAR | `ta.psar(high, low, accel, max)` | high, low, accel=0.02, max=0.2 | Array | `psar = ta.psar(h, l, 0.02, 0.2)` |
-| Hilbert Trendline | `ta.hilbert_trendline(data)` | data | Array | `ht = ta.hilbert_trendline(close)` |
+| Hilbert Trendline | `ta.ht(data)` | data | Array | `ht = ta.ht(close)` |
 | Zig Zag | `ta.zigzag(high, low, close, deviation=5.0)` | 🔴 high, 🔴 low, 🔴 close, 🟢 deviation=5.0 | Array | `zz = ta.zigzag(h, l, c)` |
 | Williams Fractals | `ta.fractals(high, low)` | 🔴 high, 🔴 low | (fractal_up, fractal_down) | `fu, fd = ta.fractals(h, l)` |
 | Random Walk Index | `ta.rwi(high, low, close, period=14)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=14 | (rwi_high, rwi_low) | `rwh, rwl = ta.rwi(h, l, c)` |
@@ -452,20 +452,20 @@ stc = ta.stc(close, fast=23, slow=50, cycle=10)
 tsi, signal = ta.tsi(close, long=25, short=13)
 
 # Vortex Indicator - identifies trend changes
-vi_plus, vi_minus = ta.vortex(high, low, close, period=14)
+vi_plus, vi_minus = ta.vi(high, low, close, period=14)
 
 # Gator Oscillator - shows Alligator convergence/divergence
-upper, lower = ta.gator((high + low) / 2)
+upper, lower = ta.gator_oscillator((high + low) / 2)
 ```
 
 ### Advanced Volatility Indicators
 
 ```python
 # Bollinger Bands %B - position relative to bands
-bb_percent_b = ta.bb_percent_b(close, period=20, std_dev=2.0)
+bb_percent_b = ta.bbpercent(close, period=20, std_dev=2.0)
 
 # Bollinger Bandwidth - measures band width
-bb_bandwidth = ta.bb_bandwidth(close, period=20, std_dev=2.0)
+bb_bandwidth = ta.bbwidth(close, period=20, std_dev=2.0)
 
 # Chandelier Exit - trailing stop based on highest/lowest
 long_exit, short_exit = ta.chandelier_exit(high, low, close, period=22, multiplier=3.0)
@@ -474,10 +474,10 @@ long_exit, short_exit = ta.chandelier_exit(high, low, close, period=22, multipli
 hv = ta.hv(close, period=20, annualize=True)
 
 # Ulcer Index - downside risk measure
-ui = ta.ulcer_index(close, period=14)
+ui = ta.ulcerindex(close, period=14)
 
 # STARC Bands - SMA with ATR-based bands
-upper, middle, lower = ta.starc_bands(high, low, close, ma_period=20, atr_period=15, multiplier=2.0)
+upper, middle, lower = ta.starc(high, low, close, ma_period=20, atr_period=15, multiplier=2.0)
 ```
 
 ### Advanced Pattern Recognition

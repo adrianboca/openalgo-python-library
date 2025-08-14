@@ -144,7 +144,7 @@ essential_functions = [
     'ta.obv', 'ta.mfi',
     
     # Hybrid (1)
-    'ta.adx_system'
+    'ta.adx'
 ]
 ```
 

@@ -29,7 +29,7 @@ class api(OrderAPI, DataAPI, AccountAPI, FeedAPI):
     """
     pass
 
-__version__ = "1.0.23"
+__version__ = "1.0.24"
 
 # Export main components for easy access
 __all__ = ['api', 'Strategy', 'ta', 'nbjit', 'prange']

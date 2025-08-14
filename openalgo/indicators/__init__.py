@@ -13,21 +13,21 @@ from typing import Union, Tuple, Optional
 # Import all indicator classes
 from .trend import (SMA, EMA, WMA, DEMA, TEMA, Supertrend, Ichimoku, HMA, VWMA, 
                    ALMA, KAMA, ZLEMA, T3, FRAMA, ChandeKrollStop, TRIMA, 
-                   McGinleyDynamic, VIDYA, Alligator, MovingAverageEnvelopes)
-from .momentum import (RSI, MACD, Stochastic, CCI, WilliamsR, BalanceOfPower, 
-                      ElderRayIndex, FisherTransform, ConnorsRSI)
-from .volatility import (ATR, BollingerBands, KeltnerChannel, DonchianChannel,
-                        ChaikinVolatility, NATR, RVI, ULTOSC, STDDEV, TRANGE, MASS,
-                        BollingerBandsPercentB, BollingerBandwidth, ChandelierExit,
-                        HistoricalVolatility, UlcerIndex, STARCBands)
-from .volume import (OBV, VWAP, MFI, ADL, CMF, EMV, FI, NVI, PVI, VO, VROC,
+                   McGinley, VIDYA, Alligator, MovingAverageEnvelopes)
+from .momentum import (RSI, MACD, Stochastic, CCI, WilliamsR, BOP, 
+                      ElderRay, Fisher, CRSI)
+from .volatility import (ATR, BollingerBands, Keltner, Donchian,
+                        Chaikin, NATR, RVI as VolatilityRVI, ULTOSC, STDDEV, TRANGE, MASS,
+                        BBPercent, BBWidth, ChandelierExit,
+                        HistoricalVolatility, UlcerIndex, STARC)
+from .volume import (OBV, VWAP, MFI, ADL, CMF, EMV, FI, NVI, PVI, VOLOSC, VROC,
                     KlingerVolumeOscillator, PriceVolumeTrend)
 from .oscillators import (ROC, CMO, TRIX, UO, AO, AC, PPO, PO, DPO, AROONOSC,
-                         StochRSI, RVI, ChaikinOscillator, CHOP, KST, TSI, VI, 
+                         StochRSI, RVI, CHO, CHOP, KST, TSI, VI, 
                          GatorOscillator, STC)
-from .statistics import (LINEARREG, LINEARREG_SLOPE, CORREL, BETA, VAR, TSF, MEDIAN, MODE)
-from .hybrid import (ADX, Aroon, PivotPoints, SAR, DMI, PSAR, HT_TRENDLINE,
-                    ZigZag, WilliamsFractals, RandomWalkIndex)
+from .statistics import (LINREG, LRSLOPE, CORREL, BETA, VAR, TSF, MEDIAN, MODE)
+from .hybrid import (ADX, Aroon, PivotPoints, SAR, DMI, PSAR, HT,
+                    ZigZag, WilliamsFractals, RWI)
 from .utils import (crossover, crossunder, highest, lowest, change, roc, 
                    sma as utils_sma, ema as utils_ema, stdev, validate_input)
 
@@ -76,6 +76,11 @@ class TechnicalAnalysis:
         self._supertrend = Supertrend()
         self._ichimoku = Ichimoku()
         self._chande_kroll_stop = ChandeKrollStop()
+        self._trima = TRIMA()
+        self._mcginley_dynamic = McGinley()
+        self._vidya = VIDYA()
+        self._alligator = Alligator()
+        self._ma_envelopes = MovingAverageEnvelopes()
         
         # Momentum indicators
         self._rsi = RSI()
@@ -83,23 +88,30 @@ class TechnicalAnalysis:
         self._stochastic = Stochastic()
         self._cci = CCI()
         self._williams_r = WilliamsR()
-        self._balance_of_power = BalanceOfPower()
-        self._elder_ray = ElderRayIndex()
-        self._fisher_transform = FisherTransform()
-        self._connors_rsi = ConnorsRSI()
+        self._balance_of_power = BOP()
+        self._elder_ray = ElderRay()
+        self._fisher_transform = Fisher()
+        self._connors_rsi = CRSI()
         
         # Volatility indicators
         self._atr = ATR()
         self._bbands = BollingerBands()
-        self._keltner = KeltnerChannel()
-        self._donchian = DonchianChannel()
-        self._chaikin_volatility = ChaikinVolatility()
+        self._keltner = Keltner()
+        self._donchian = Donchian()
+        self._chaikin_volatility = Chaikin()
         self._natr = NATR()
-        self._rvi = RVI()
+        self._rvi = RVI()  # Oscillator RVI (Relative Vigor Index)
+        self._volatility_rvi = VolatilityRVI()  # Volatility RVI (Relative Volatility Index)
         self._ultosc = ULTOSC()
         self._stddev = STDDEV()
         self._trange = TRANGE()
         self._mass = MASS()
+        self._bbands_percent_b = BBPercent()
+        self._bbands_bandwidth = BBWidth()
+        self._chandelier_exit = ChandelierExit()
+        self._hv = HistoricalVolatility()
+        self._ulcer_index = UlcerIndex()
+        self._starc_bands = STARC()
         
         # Volume indicators
         self._obv = OBV()
@@ -111,7 +123,7 @@ class TechnicalAnalysis:
         self._fi = FI()
         self._nvi = NVI()
         self._pvi = PVI()
-        self._vo = VO()
+        self._vo = VOLOSC()
         self._vroc = VROC()
         self._klinger_vo = KlingerVolumeOscillator()
         self._pvt = PriceVolumeTrend()
@@ -129,11 +141,17 @@ class TechnicalAnalysis:
         self._aroonosc = AROONOSC()
         self._stoch_rsi = StochRSI()
         self._rvi_osc = RVI()
-        self._chaikin_osc = ChaikinOscillator()
+        self._chaikin_osc = CHO()
+        self._chop = CHOP()
+        self._kst = KST()
+        self._tsi = TSI()
+        self._vi = VI()
+        self._stc = STC()
+        self._gator_oscillator = GatorOscillator()
         
         # Statistical indicators
-        self._linearreg = LINEARREG()
-        self._linearreg_slope = LINEARREG_SLOPE()
+        self._linearreg = LINREG()
+        self._linearreg_slope = LRSLOPE()
         self._correl = CORREL()
         self._beta = BETA()
         self._var = VAR()
@@ -148,7 +166,10 @@ class TechnicalAnalysis:
         self._sar = SAR()
         self._dmi = DMI()
         self._psar = PSAR()
-        self._ht_trendline = HT_TRENDLINE()
+        self._ht_trendline = HT()
+        self._zigzag = ZigZag()
+        self._williams_fractals = WilliamsFractals()
+        self._random_walk_index = RWI()
     
     # =================== TREND INDICATORS ===================
     
@@ -503,7 +524,7 @@ class TechnicalAnalysis:
         """
         return self._bbands.calculate(data, period, std_dev)
     
-    def keltner_channel(self, high: Union[np.ndarray, pd.Series, list],
+    def keltner(self, high: Union[np.ndarray, pd.Series, list],
                         low: Union[np.ndarray, pd.Series, list],
                         close: Union[np.ndarray, pd.Series, list],
                         ema_period: int = 20, atr_period: int = 10, 
@@ -533,7 +554,7 @@ class TechnicalAnalysis:
         """
         return self._keltner.calculate(high, low, close, ema_period, atr_period, multiplier)
     
-    def donchian_channel(self, high: Union[np.ndarray, pd.Series, list],
+    def donchian(self, high: Union[np.ndarray, pd.Series, list],
                          low: Union[np.ndarray, pd.Series, list],
                          period: int = 20) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
@@ -555,7 +576,7 @@ class TechnicalAnalysis:
         """
         return self._donchian.calculate(high, low, period)
     
-    def chaikin_volatility(self, high: Union[np.ndarray, pd.Series, list],
+    def chaikin(self, high: Union[np.ndarray, pd.Series, list],
                           low: Union[np.ndarray, pd.Series, list],
                           ema_period: int = 10, roc_period: int = 10) -> np.ndarray:
         """Chaikin Volatility"""
@@ -568,10 +589,10 @@ class TechnicalAnalysis:
         """Normalized Average True Range"""
         return self._natr.calculate(high, low, close, period)
     
-    def rvi_volatility(self, data: Union[np.ndarray, pd.Series, list],
+    def rvol(self, data: Union[np.ndarray, pd.Series, list],
                       stdev_period: int = 10, rsi_period: int = 14) -> np.ndarray:
         """Relative Volatility Index"""
-        return self._rvi.calculate(data, stdev_period, rsi_period)
+        return self._volatility_rvi.calculate(data, stdev_period, rsi_period)
     
     def ultimate_oscillator(self, high: Union[np.ndarray, pd.Series, list],
                            low: Union[np.ndarray, pd.Series, list],
@@ -590,7 +611,7 @@ class TechnicalAnalysis:
         """True Range"""
         return self._trange.calculate(high, low, close)
     
-    def mass_index(self, high: Union[np.ndarray, pd.Series, list],
+    def massindex(self, high: Union[np.ndarray, pd.Series, list],
                    low: Union[np.ndarray, pd.Series, list],
                    fast_period: int = 9, slow_period: int = 25) -> np.ndarray:
         """Mass Index"""
@@ -710,7 +731,7 @@ class TechnicalAnalysis:
         """Positive Volume Index"""
         return self._pvi.calculate(close, volume)
     
-    def volume_oscillator(self, volume: Union[np.ndarray, pd.Series, list],
+    def volosc(self, volume: Union[np.ndarray, pd.Series, list],
                          fast_period: int = 5, slow_period: int = 10) -> np.ndarray:
         """Volume Oscillator"""
         return self._vo.calculate(volume, fast_period, slow_period)
@@ -758,7 +779,7 @@ class TechnicalAnalysis:
         """Percentage Price Oscillator"""
         return self._ppo.calculate(data, fast_period, slow_period, signal_period)
     
-    def price_oscillator(self, data: Union[np.ndarray, pd.Series, list],
+    def po(self, data: Union[np.ndarray, pd.Series, list],
                         fast_period: int = 10, slow_period: int = 20,
                         ma_type: str = "SMA") -> np.ndarray:
         """Price Oscillator"""
@@ -776,11 +797,11 @@ class TechnicalAnalysis:
     
     # =================== STATISTICAL INDICATORS ===================
     
-    def linear_regression(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
+    def linreg(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
         """Linear Regression"""
         return self._linearreg.calculate(data, period)
     
-    def linear_regression_slope(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
+    def lrslope(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
         """Linear Regression Slope"""
         return self._linearreg_slope.calculate(data, period)
     
@@ -800,7 +821,7 @@ class TechnicalAnalysis:
         """Variance"""
         return self._var.calculate(data, period)
     
-    def time_series_forecast(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
+    def tsf(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
         """Time Series Forecast"""
         return self._tsf.calculate(data, period)
     
@@ -815,14 +836,14 @@ class TechnicalAnalysis:
     
     # =================== HYBRID INDICATORS ===================
     
-    def adx_system(self, high: Union[np.ndarray, pd.Series, list],
+    def adx(self, high: Union[np.ndarray, pd.Series, list],
                    low: Union[np.ndarray, pd.Series, list],
                    close: Union[np.ndarray, pd.Series, list],
                    period: int = 14) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Average Directional Index System (+DI, -DI, ADX)"""
         return self._adx.calculate(high, low, close, period)
     
-    def aroon_system(self, high: Union[np.ndarray, pd.Series, list],
+    def aroon(self, high: Union[np.ndarray, pd.Series, list],
                      low: Union[np.ndarray, pd.Series, list],
                      period: int = 25) -> Tuple[np.ndarray, np.ndarray]:
         """Aroon Indicator (Up, Down)"""
@@ -840,7 +861,7 @@ class TechnicalAnalysis:
         """Parabolic SAR (values, trend)"""
         return self._sar.calculate(high, low, acceleration, maximum)
     
-    def directional_movement(self, high: Union[np.ndarray, pd.Series, list],
+    def dmi(self, high: Union[np.ndarray, pd.Series, list],
                             low: Union[np.ndarray, pd.Series, list],
                             close: Union[np.ndarray, pd.Series, list],
                             period: int = 14) -> Tuple[np.ndarray, np.ndarray]:
@@ -853,7 +874,7 @@ class TechnicalAnalysis:
         """Parabolic SAR (values only)"""
         return self._psar.calculate(high, low, acceleration, maximum)
     
-    def hilbert_trendline(self, data: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+    def ht(self, data: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
         """Hilbert Transform Trendline"""
         return self._ht_trendline.calculate(data)
     
@@ -929,6 +950,89 @@ class TechnicalAnalysis:
            fast_period: int = 3, slow_period: int = 10) -> Union[np.ndarray, pd.Series]:
         """Chaikin Oscillator"""
         return self._chaikin_osc.calculate(high, low, close, volume, fast_period, slow_period)
+    
+    # =================== MISSING FUNCTIONS ALIASES ===================
+    
+    # Create aliases for the renamed functions
+    def bbwidth(self, data, period=20, std_dev=2.0):
+        """Bollinger Bands Bandwidth (alias for bbands_bandwidth)"""
+        return self._bbands_bandwidth.calculate(data, period, std_dev) if hasattr(self, '_bbands_bandwidth') else None
+    
+    def bbpercent(self, data, period=20, std_dev=2.0):
+        """Bollinger Bands %B (alias for bbands_percent_b)"""
+        return self._bbands_percent_b.calculate(data, period, std_dev) if hasattr(self, '_bbands_percent_b') else None
+    
+    def mcginley(self, data, period=14):
+        """McGinley Dynamic (alias for mcginley_dynamic)"""
+        return self._mcginley_dynamic.calculate(data, period) if hasattr(self, '_mcginley_dynamic') else None
+        
+    def starc(self, high, low, close, ma_period=20, atr_period=15, multiplier=2.0):
+        """STARC Bands (alias for starc_bands)"""
+        return self._starc_bands.calculate(high, low, close, ma_period, atr_period, multiplier) if hasattr(self, '_starc_bands') else None
+    
+    def ulcerindex(self, data, period=14):
+        """Ulcer Index (alias for ulcer_index)"""
+        return self._ulcer_index.calculate(data, period) if hasattr(self, '_ulcer_index') else None
+        
+    def rwi(self, high, low, close, period=14):
+        """Random Walk Index (alias for random_walk_index)"""
+        return self._random_walk_index.calculate(high, low, close, period) if hasattr(self, '_random_walk_index') else None
+        
+    def fractals(self, high, low):
+        """Williams Fractals (alias for williams_fractals)"""  
+        return self._williams_fractals.calculate(high, low) if hasattr(self, '_williams_fractals') else None
+        
+    def trima(self, data, period=20):
+        """Triangular Moving Average (alias)"""
+        return self._trima.calculate(data, period) if hasattr(self, '_trima') else None
+        
+    def vidya(self, data, period=14, alpha=0.2):
+        """Variable Index Dynamic Average (alias)"""
+        return self._vidya.calculate(data, period, alpha) if hasattr(self, '_vidya') else None
+        
+    def alligator(self, data, jaw_period=13, jaw_shift=8, teeth_period=8, teeth_shift=5, lips_period=5, lips_shift=3):
+        """Bill Williams Alligator (alias)"""
+        return self._alligator.calculate(data, jaw_period, jaw_shift, teeth_period, teeth_shift, lips_period, lips_shift) if hasattr(self, '_alligator') else None
+        
+    def ma_envelopes(self, data, period=20, percentage=2.5, ma_type='SMA'):
+        """Moving Average Envelopes (alias)"""
+        return self._ma_envelopes.calculate(data, period, percentage, ma_type) if hasattr(self, '_ma_envelopes') else None
+        
+    def chandelier_exit(self, high, low, close, period=22, multiplier=3.0):
+        """Chandelier Exit (alias)"""
+        return self._chandelier_exit.calculate(high, low, close, period, multiplier) if hasattr(self, '_chandelier_exit') else None
+        
+    def hv(self, data, period=20, annualize=True):
+        """Historical Volatility (alias)"""
+        return self._hv.calculate(data, period, annualize) if hasattr(self, '_hv') else None
+        
+    def chop(self, high, low, close, period=14):
+        """Choppiness Index (alias)"""
+        return self._chop.calculate(high, low, close, period) if hasattr(self, '_chop') else None
+        
+    def kst(self, data, roc1=10, roc2=15, roc3=20, roc4=30, sma1=10, sma2=10, sma3=10, sma4=15, signal_period=9):
+        """Know Sure Thing (alias)"""
+        return self._kst.calculate(data, roc1, roc2, roc3, roc4, sma1, sma2, sma3, sma4, signal_period) if hasattr(self, '_kst') else None
+        
+    def tsi(self, data, long_period=25, short_period=13, signal_period=13):
+        """True Strength Index (alias)"""
+        return self._tsi.calculate(data, long_period, short_period, signal_period) if hasattr(self, '_tsi') else None
+        
+    def vi(self, high, low, close, period=14):
+        """Vortex Indicator (alias)"""
+        return self._vi.calculate(high, low, close, period) if hasattr(self, '_vi') else None
+        
+    def stc(self, data, fast_period=23, slow_period=50, cycle_period=10, d1_period=3, d2_period=3):
+        """Schaff Trend Cycle (alias)"""
+        return self._stc.calculate(data, fast_period, slow_period, cycle_period, d1_period, d2_period) if hasattr(self, '_stc') else None
+        
+    def gator_oscillator(self, data, jaw_period=13, teeth_period=8, lips_period=5):
+        """Gator Oscillator (alias)"""
+        return self._gator_oscillator.calculate(data, jaw_period, teeth_period, lips_period) if hasattr(self, '_gator_oscillator') else None
+        
+    def zigzag(self, high, low, close, deviation=5.0):
+        """Zig Zag (alias)"""
+        return self._zigzag.calculate(high, low, close, deviation) if hasattr(self, '_zigzag') else None
     
     # =================== UTILITY FUNCTIONS ===================
     
@@ -1078,23 +1182,24 @@ __all__ = [
     'ta', 'TechnicalAnalysis',
     # Trend indicators
     'SMA', 'EMA', 'WMA', 'DEMA', 'TEMA', 'HMA', 'VWMA', 'ALMA', 'KAMA', 'ZLEMA', 'T3', 'FRAMA',
-    'Supertrend', 'Ichimoku', 'ChandeKrollStop',
+    'Supertrend', 'Ichimoku', 'ChandeKrollStop', 'TRIMA', 'McGinley', 'VIDYA', 'Alligator', 'MovingAverageEnvelopes',
     # Momentum indicators  
-    'RSI', 'MACD', 'Stochastic', 'CCI', 'WilliamsR', 'BalanceOfPower', 'ElderRayIndex', 
-    'FisherTransform', 'ConnorsRSI',
+    'RSI', 'MACD', 'Stochastic', 'CCI', 'WilliamsR', 'BOP', 'ElderRay', 
+    'Fisher', 'CRSI',
     # Volatility indicators
-    'ATR', 'BollingerBands', 'KeltnerChannel', 'DonchianChannel', 'ChaikinVolatility', 'NATR', 
-    'RVI', 'ULTOSC', 'STDDEV', 'TRANGE', 'MASS',
+    'ATR', 'BollingerBands', 'Keltner', 'Donchian', 'Chaikin', 'NATR', 
+    'RVI', 'ULTOSC', 'STDDEV', 'TRANGE', 'MASS', 'BBPercent', 'BBWidth', 'STARC',
+    'ChandelierExit', 'HistoricalVolatility', 'UlcerIndex',
     # Volume indicators
-    'OBV', 'VWAP', 'MFI', 'ADL', 'CMF', 'EMV', 'FI', 'NVI', 'PVI', 'VO', 'VROC',
+    'OBV', 'VWAP', 'MFI', 'ADL', 'CMF', 'EMV', 'FI', 'NVI', 'PVI', 'VOLOSC', 'VROC',
     'KlingerVolumeOscillator', 'PriceVolumeTrend',
     # Oscillators
     'ROC', 'CMO', 'TRIX', 'UO', 'AO', 'AC', 'PPO', 'PO', 'DPO', 'AROONOSC',
-    'StochRSI', 'RVI', 'ChaikinOscillator',
+    'StochRSI', 'RVI', 'CHO', 'CHOP', 'KST', 'TSI', 'VI', 'STC', 'GatorOscillator',
     # Statistical indicators
-    'LINEARREG', 'LINEARREG_SLOPE', 'CORREL', 'BETA', 'VAR', 'TSF', 'MEDIAN', 'MODE',
+    'LINREG', 'LRSLOPE', 'CORREL', 'BETA', 'VAR', 'TSF', 'MEDIAN', 'MODE',
     # Hybrid indicators
-    'ADX', 'Aroon', 'PivotPoints', 'SAR', 'DMI', 'PSAR', 'HT_TRENDLINE',
+    'ADX', 'Aroon', 'PivotPoints', 'SAR', 'DMI', 'PSAR', 'HT', 'ZigZag', 'WilliamsFractals', 'RWI',
     # Utility functions
     'crossover', 'crossunder', 'highest', 'lowest', 'change', 'roc', 'stdev'
 ]

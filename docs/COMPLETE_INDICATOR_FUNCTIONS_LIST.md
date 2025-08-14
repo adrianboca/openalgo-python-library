@@ -35,7 +35,7 @@ result = ta.function_name(parameters)
 | `ta.t3(data, period=21, v_factor=0.7)` | T3 Moving Average | data, period, v_factor | Array |
 | `ta.frama(data, period=16)` | Fractal Adaptive MA | data, period | Array |
 | `ta.trima(data, period)` | Triangular Moving Average | data, period | Array |
-| `ta.mcginley_dynamic(data, period=14)` | McGinley Dynamic | data, period | Array |
+| `ta.mcginley(data, period=14)` | McGinley Dynamic | data, period | Array |
 | `ta.vidya(data, period=14, alpha=0.2)` | Variable Index Dynamic Average | data, period, alpha | Array |
 
 ### Complex Trend Systems
@@ -76,7 +76,7 @@ result = ta.function_name(parameters)
 | `ta.awesome_oscillator(high, low, fast_period=5, slow_period=34)` | Awesome Oscillator | high, low, fast_period, slow_period | Array |
 | `ta.accelerator_oscillator(high, low, period=5)` | Accelerator Oscillator | high, low, period | Array |
 | `ta.ppo(data, fast_period=12, slow_period=26, signal_period=9)` | Percentage Price Oscillator | data, fast_period, slow_period, signal_period | (ppo, signal, histogram) |
-| `ta.price_oscillator(data, fast_period=10, slow_period=20, ma_type='SMA')` | Price Oscillator | data, fast_period, slow_period, ma_type | Array |
+| `ta.po(data, fast_period=10, slow_period=20, ma_type='SMA')` | Price Oscillator | data, fast_period, slow_period, ma_type | Array |
 | `ta.dpo(data, period=20)` | Detrended Price Oscillator | data, period | Array |
 | `ta.aroon_oscillator(high, low, period=25)` | Aroon Oscillator | high, low, period | Array |
 
@@ -114,25 +114,25 @@ result = ta.function_name(parameters)
 | Function | Description | Parameters | Returns |
 |----------|-------------|------------|---------|
 | `ta.bbands(data, period=20, std_dev=2.0)` | Bollinger Bands | data, period, std_dev | (upper, middle, lower) |
-| `ta.keltner_channel(high, low, close, ema_period=20, atr_period=10, multiplier=2.0)` | Keltner Channel | high, low, close, ema_period, atr_period, multiplier | (upper, middle, lower) |
-| `ta.donchian_channel(high, low, period=20)` | Donchian Channel | high, low, period | (upper, middle, lower) |
+| `ta.keltner(high, low, close, ema_period=20, atr_period=10, multiplier=2.0)` | Keltner Channel | high, low, close, ema_period, atr_period, multiplier | (upper, middle, lower) |
+| `ta.donchian(high, low, period=20)` | Donchian Channel | high, low, period | (upper, middle, lower) |
 
 ### Advanced Volatility
 | Function | Description | Parameters | Returns |
 |----------|-------------|------------|---------|
-| `ta.chaikin_volatility(high, low, ema_period=10, roc_period=10)` | Chaikin Volatility | high, low, ema_period, roc_period | Array |
-| `ta.rvi_volatility(data, stdev_period=10, rsi_period=14)` | Relative Volatility Index | data, stdev_period, rsi_period | Array |
-| `ta.mass_index(high, low, fast_period=9, slow_period=25)` | Mass Index | high, low, fast_period, slow_period | Array |
+| `ta.chaikin(high, low, ema_period=10, roc_period=10)` | Chaikin Volatility | high, low, ema_period, roc_period | Array |
+| `ta.rvol(data, stdev_period=10, rsi_period=14)` | Relative Volatility Index | data, stdev_period, rsi_period | Array |
+| `ta.massindex(high, low, fast_period=9, slow_period=25)` | Mass Index | high, low, fast_period, slow_period | Array |
 
 ### Advanced Volatility Indicators
 | Function | Description | Parameters | Returns |
 |----------|-------------|------------|---------|
-| `ta.bbands_percent_b(close, period=20, std_dev=2)` | Bollinger Bands %B | close, period, std_dev | Array |
-| `ta.bbands_bandwidth(close, period=20, std_dev=2)` | Bollinger Bandwidth | close, period, std_dev | Array |
+| `ta.bbpercent(close, period=20, std_dev=2)` | Bollinger Bands %B | close, period, std_dev | Array |
+| `ta.bbwidth(close, period=20, std_dev=2)` | Bollinger Bandwidth | close, period, std_dev | Array |
 | `ta.chandelier_exit(high, low, close, period=22, multiplier=3.0)` | Chandelier Exit | high, low, close, period, multiplier | (long_exit, short_exit) |
 | `ta.hv(close, period=20, annualize=True)` | Historical Volatility | close, period, annualize | Array |
-| `ta.ulcer_index(close, period=14)` | Ulcer Index | close, period | Array |
-| `ta.starc_bands(high, low, close, ma_period=20, atr_period=15, multiplier=2.0)` | STARC Bands | high, low, close, ma_period, atr_period, multiplier | (upper, middle, lower) |
+| `ta.ulcerindex(close, period=14)` | Ulcer Index | close, period | Array |
+| `ta.starc(high, low, close, ma_period=20, atr_period=15, multiplier=2.0)` | STARC Bands | high, low, close, ma_period, atr_period, multiplier | (upper, middle, lower) |
 
 ---
 
@@ -154,7 +154,7 @@ result = ta.function_name(parameters)
 | `ta.emv(high, low, volume, scale=1000000)` | Ease of Movement | high, low, volume, scale | Array |
 | `ta.nvi(close, volume)` | Negative Volume Index | close, volume | Array |
 | `ta.pvi(close, volume)` | Positive Volume Index | close, volume | Array |
-| `ta.volume_oscillator(volume, fast_period=5, slow_period=10)` | Volume Oscillator | volume, fast_period, slow_period | Array |
+| `ta.volosc(volume, fast_period=5, slow_period=10)` | Volume Oscillator | volume, fast_period, slow_period | Array |
 | `ta.vroc(volume, period=25)` | Volume Rate of Change | volume, period | Array |
 | `ta.kvo(high, low, close, volume, fast_period=34, slow_period=55)` | Klinger Volume Oscillator | high, low, close, volume, fast_period, slow_period | Array |
 | `ta.pvt(close, volume)` | Price Volume Trend | close, volume | Array |
@@ -165,12 +165,12 @@ result = ta.function_name(parameters)
 
 | Function | Description | Parameters | Returns |
 |----------|-------------|------------|---------|
-| `ta.linear_regression(data, period=14)` | Linear Regression | data, period | Array |
-| `ta.linear_regression_slope(data, period=14)` | Linear Regression Slope | data, period | Array |
+| `ta.linreg(data, period=14)` | Linear Regression | data, period | Array |
+| `ta.lrslope(data, period=14)` | Linear Regression Slope | data, period | Array |
 | `ta.correlation(data1, data2, period=20)` | Pearson Correlation | data1, data2, period | Array |
 | `ta.beta(asset, market, period=252)` | Beta Coefficient | asset, market, period | Array |
 | `ta.variance(data, period=20)` | Variance | data, period | Array |
-| `ta.time_series_forecast(data, period=14)` | Time Series Forecast | data, period | Array |
+| `ta.tsf(data, period=14)` | Time Series Forecast | data, period | Array |
 | `ta.median(data, period=20)` | Rolling Median | data, period | Array |
 | `ta.mode(data, period=20, bins=10)` | Rolling Mode | data, period, bins | Array |
 
@@ -181,9 +181,9 @@ result = ta.function_name(parameters)
 ### Directional & Trend Systems
 | Function | Description | Parameters | Returns |
 |----------|-------------|------------|---------|
-| `ta.adx_system(high, low, close, period=14)` | ADX System | high, low, close, period | (di_plus, di_minus, adx) |
-| `ta.aroon_system(high, low, period=25)` | Aroon System | high, low, period | (aroon_up, aroon_down) |
-| `ta.directional_movement(high, low, close, period=14)` | Directional Movement | high, low, close, period | (di_plus, di_minus) |
+| `ta.adx(high, low, close, period=14)` | ADX System | high, low, close, period | (di_plus, di_minus, adx) |
+| `ta.aroon(high, low, period=25)` | Aroon System | high, low, period | (aroon_up, aroon_down) |
+| `ta.dmi(high, low, close, period=14)` | Directional Movement | high, low, close, period | (di_plus, di_minus) |
 
 ### Support/Resistance Systems
 | Function | Description | Parameters | Returns |
@@ -195,14 +195,14 @@ result = ta.function_name(parameters)
 ### Advanced Technical Systems
 | Function | Description | Parameters | Returns |
 |----------|-------------|------------|---------|
-| `ta.hilbert_trendline(data)` | Hilbert Transform Trendline | data | Array |
+| `ta.ht(data)` | Hilbert Transform Trendline | data | Array |
 
 ### Advanced Pattern Recognition
 | Function | Description | Parameters | Returns |
 |----------|-------------|------------|---------|
 | `ta.zigzag(high, low, deviation=5.0)` | Zig Zag | high, low, deviation | Array |
-| `ta.williams_fractals(high, low, period=2)` | Williams Fractals | high, low, period | (fractal_high, fractal_low) |
-| `ta.random_walk_index(high, low, close, period=14)` | Random Walk Index | high, low, close, period | (rwi_high, rwi_low) |
+| `ta.fractals(high, low, period=2)` | Williams Fractals | high, low, period | (fractal_high, fractal_low) |
+| `ta.rwi(high, low, close, period=14)` | Random Walk Index | high, low, close, period | (rwi_high, rwi_low) |
 
 ---
 

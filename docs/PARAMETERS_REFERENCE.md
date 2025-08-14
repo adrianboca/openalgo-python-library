@@ -183,7 +183,7 @@ ta.trima(data, period)
 
 ### McGinley Dynamic
 ```python
-ta.mcginley_dynamic(data, period=14)
+ta.mcginley(data, period=14)
 ```
 - 🔴 **data**: Price data
 - 🟢 **period**: Number of periods (default: 14)
@@ -494,7 +494,7 @@ upper, middle, lower = ta.bbands(close, 14, 1.5)      # Custom parameters
 
 ### Keltner Channel
 ```python
-ta.keltner_channel(high, low, close, ema_period=20, atr_period=10, multiplier=2.0)
+ta.keltner(high, low, close, ema_period=20, atr_period=10, multiplier=2.0)
 ```
 - 🔴 **high**: High prices
 - 🔴 **low**: Low prices
@@ -505,13 +505,13 @@ ta.keltner_channel(high, low, close, ema_period=20, atr_period=10, multiplier=2.
 
 **Example:**
 ```python
-upper, middle, lower = ta.keltner_channel(high, low, close)           # Uses defaults
-upper, middle, lower = ta.keltner_channel(high, low, close, 14, 14, 1.5)  # Custom
+upper, middle, lower = ta.keltner(high, low, close)           # Uses defaults
+upper, middle, lower = ta.keltner(high, low, close, 14, 14, 1.5)  # Custom
 ```
 
 ### Donchian Channel
 ```python
-ta.donchian_channel(high, low, period=20)
+ta.donchian(high, low, period=20)
 ```
 - 🔴 **high**: High prices
 - 🔴 **low**: Low prices
@@ -519,13 +519,13 @@ ta.donchian_channel(high, low, period=20)
 
 **Example:**
 ```python
-upper, middle, lower = ta.donchian_channel(high, low)         # Uses period=20
-upper, middle, lower = ta.donchian_channel(high, low, 14)    # Custom period
+upper, middle, lower = ta.donchian(high, low)         # Uses period=20
+upper, middle, lower = ta.donchian(high, low, 14)    # Custom period
 ```
 
 ### Chaikin Volatility
 ```python
-ta.chaikin_volatility(high, low, ema_period=10, roc_period=10)
+ta.chaikin(high, low, ema_period=10, roc_period=10)
 ```
 - 🔴 **high**: High prices
 - 🔴 **low**: Low prices
@@ -543,7 +543,7 @@ ta.natr(high, low, close, period=14)
 
 ### Relative Volatility Index (RVI)
 ```python
-ta.rvi_volatility(data, stdev_period=10, rsi_period=14)
+ta.rvol(data, stdev_period=10, rsi_period=14)
 ```
 - 🔴 **data**: Price data
 - 🟢 **stdev_period**: Standard deviation period (default: **10**)
@@ -577,7 +577,7 @@ ta.true_range(high, low, close)
 
 ### Mass Index
 ```python
-ta.mass_index(high, low, fast_period=9, slow_period=25)
+ta.massindex(high, low, fast_period=9, slow_period=25)
 ```
 - 🔴 **high**: High prices
 - 🔴 **low**: Low prices
@@ -586,7 +586,7 @@ ta.mass_index(high, low, fast_period=9, slow_period=25)
 
 ### Bollinger Bands %B
 ```python
-ta.bbands_percent_b(close, period=20, std_dev=2)
+ta.bbpercent(close, period=20, std_dev=2)
 ```
 - 🔴 **close**: Close prices
 - 🟢 **period**: MA period (default: 20)
@@ -594,7 +594,7 @@ ta.bbands_percent_b(close, period=20, std_dev=2)
 
 ### Bollinger Bandwidth
 ```python
-ta.bbands_bandwidth(close, period=20, std_dev=2)
+ta.bbwidth(close, period=20, std_dev=2)
 ```
 - 🔴 **close**: Close prices
 - 🟢 **period**: MA period (default: 20)
@@ -622,14 +622,14 @@ ta.hv(close, period=20, annualize=True)
 
 ### Ulcer Index
 ```python
-ta.ulcer_index(close, period=14)
+ta.ulcerindex(close, period=14)
 ```
 - 🔴 **close**: Close prices
 - 🟢 **period**: Number of periods (default: 14)
 
 ### STARC Bands
 ```python
-ta.starc_bands(high, low, close, ma_period=20, atr_period=15, multiplier=2.0)
+ta.starc(high, low, close, ma_period=20, atr_period=15, multiplier=2.0)
 ```
 - 🔴 **high**: High prices
 - 🔴 **low**: Low prices
@@ -734,7 +734,7 @@ ta.pvi(close, volume)
 
 ### Volume Oscillator
 ```python
-ta.volume_oscillator(volume, fast_period=5, slow_period=10)
+ta.volosc(volume, fast_period=5, slow_period=10)
 ```
 - 🔴 **volume**: Volume data
 - 🟢 **fast_period**: Fast MA period (default: **5**)
@@ -829,7 +829,7 @@ ta.ppo(data, fast_period=12, slow_period=26, signal_period=9)
 
 ### Price Oscillator
 ```python
-ta.price_oscillator(data, fast_period=10, slow_period=20, ma_type="SMA")
+ta.po(data, fast_period=10, slow_period=20, ma_type="SMA")
 ```
 - 🔴 **data**: Price data
 - 🟢 **fast_period**: Fast MA period (default: **10**)
@@ -857,14 +857,14 @@ ta.aroon_oscillator(high, low, period=25)
 
 ### Linear Regression
 ```python
-ta.linear_regression(data, period=14)
+ta.linreg(data, period=14)
 ```
 - 🔴 **data**: Price data
 - 🟢 **period**: Number of periods (default: **14**)
 
 ### Linear Regression Slope
 ```python
-ta.linear_regression_slope(data, period=14)
+ta.lrslope(data, period=14)
 ```
 - 🔴 **data**: Price data
 - 🟢 **period**: Number of periods (default: **14**)
@@ -894,7 +894,7 @@ ta.variance(data, period=20)
 
 ### Time Series Forecast (TSF)
 ```python
-ta.time_series_forecast(data, period=14)
+ta.tsf(data, period=14)
 ```
 - 🔴 **data**: Price data
 - 🟢 **period**: Number of periods (default: **14**)
@@ -920,7 +920,7 @@ ta.mode(data, period=20, bins=10)
 
 ### Average Directional Index (ADX) System
 ```python
-ta.adx_system(high, low, close, period=14)
+ta.adx(high, low, close, period=14)
 ```
 - 🔴 **high**: High prices
 - 🔴 **low**: Low prices
@@ -929,7 +929,7 @@ ta.adx_system(high, low, close, period=14)
 
 ### Aroon System
 ```python
-ta.aroon_system(high, low, period=25)
+ta.aroon(high, low, period=25)
 ```
 - 🔴 **high**: High prices
 - 🔴 **low**: Low prices
@@ -954,7 +954,7 @@ ta.parabolic_sar(high, low, acceleration=0.02, maximum=0.2)
 
 ### Directional Movement Index (DMI)
 ```python
-ta.directional_movement(high, low, close, period=14)
+ta.dmi(high, low, close, period=14)
 ```
 - 🔴 **high**: High prices
 - 🔴 **low**: Low prices
@@ -972,7 +972,7 @@ ta.psar(high, low, acceleration=0.02, maximum=0.2)
 
 ### Hilbert Transform Trendline
 ```python
-ta.hilbert_trendline(data)
+ta.ht(data)
 ```
 - 🔴 **data**: Price data
 
@@ -986,7 +986,7 @@ ta.zigzag(high, low, deviation=5.0)
 
 ### Williams Fractals
 ```python
-ta.williams_fractals(high, low, period=2)
+ta.fractals(high, low, period=2)
 ```
 - 🔴 **high**: High prices
 - 🔴 **low**: Low prices
@@ -996,7 +996,7 @@ ta.williams_fractals(high, low, period=2)
 
 ### Random Walk Index (RWI)
 ```python
-ta.random_walk_index(high, low, close, period=14)
+ta.rwi(high, low, close, period=14)
 ```
 - 🔴 **high**: High prices
 - 🔴 **low**: Low prices

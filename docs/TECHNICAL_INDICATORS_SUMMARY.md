@@ -216,8 +216,8 @@ else:
 ### Advanced Pattern Recognition
 ```python
 # Complex multi-timeframe analysis
-di_plus, di_minus, adx = ta.adx_system(high, low, close, 14)
-aroon_up, aroon_down = ta.aroon_system(high, low, 25)
+di_plus, di_minus, adx = ta.adx(high, low, close, 14)
+aroon_up, aroon_down = ta.aroon(high, low, 25)
 pivot, r1, s1, r2, s2, r3, s3 = ta.pivot_points(high, low, close)
 
 # Trend strength assessment

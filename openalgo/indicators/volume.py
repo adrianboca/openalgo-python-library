@@ -658,7 +658,7 @@ class PVI(BaseIndicator):
         return self.format_output(result, input_type, index)
 
 
-class VO(BaseIndicator):
+class VOLOSC(BaseIndicator):
     """
     Volume Oscillator
     

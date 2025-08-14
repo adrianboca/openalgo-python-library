@@ -26,20 +26,20 @@ This report verifies that all 30 requested professional technical analysis indic
 | 14 | **True Strength Index** | `ta.tsi()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 15 | **Vortex Indicator** | `ta.vi()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 16 | **Zig Zag** | `ta.zigzag()` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 17 | **Williams Fractals** | `ta.williams_fractals()` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 17 | **Williams Fractals** | `ta.fractals()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 18 | **Alligator** | `ta.alligator()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 19 | **Gator Oscillator** | `ta.gator_oscillator()` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 20 | **Bollinger Bands %B** | `ta.bbands_percent_b()` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 21 | **Bollinger Bandwidth** | `ta.bbands_bandwidth()` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 20 | **Bollinger Bands %B** | `ta.bbpercent()` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 21 | **Bollinger Bandwidth** | `ta.bbwidth()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 22 | **Chandelier Exit** | `ta.chandelier_exit()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 23 | **Historical Volatility** | `ta.hv()` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 24 | **Ulcer Index** | `ta.ulcer_index()` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 25 | **STARC Bands** | `ta.starc_bands()` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 24 | **Ulcer Index** | `ta.ulcerindex()` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 25 | **STARC Bands** | `ta.starc()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 26 | **Moving Average Envelopes** | `ta.ma_envelopes()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 27 | **Triangular Moving Average** | `ta.trima()` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 28 | **McGinley Dynamic** | `ta.mcginley_dynamic()` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 28 | **McGinley Dynamic** | `ta.mcginley()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 29 | **VIDYA** | `ta.vidya()` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 30 | **Random Walk Index** | `ta.random_walk_index()` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 30 | **Random Walk Index** | `ta.rwi()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 

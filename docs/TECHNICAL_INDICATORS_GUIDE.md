@@ -1083,7 +1083,7 @@ for i in range(1, len(bandwidth)):
 
 ```python
 # Example
-kc_upper, kc_middle, kc_lower = ta.keltner_channel(high, low, close, 20, 10, 2)
+kc_upper, kc_middle, kc_lower = ta.keltner(high, low, close, 20, 10, 2)
 
 # Channel breakout detection
 for i in range(len(close)):
@@ -1106,7 +1106,7 @@ for i in range(len(close)):
 
 ```python
 # Example
-dc_upper, dc_middle, dc_lower = ta.donchian_channel(high, low, 20)
+dc_upper, dc_middle, dc_lower = ta.donchian(high, low, 20)
 
 # Turtle trading system signals
 for i in range(len(close)):
@@ -1130,7 +1130,7 @@ for i in range(len(close)):
 
 ```python
 # Example
-chaikin_vol = ta.chaikin_volatility(high, low, 10, 10)
+chaikin_vol = ta.chaikin(high, low, 10, 10)
 ```
 
 ### 6. Normalized Average True Range (NATR)
@@ -1166,7 +1166,7 @@ print(f"Current volatility: {natr_14[-1]:.2f}% of price")
 
 ```python
 # Example
-rvi = ta.rvi_volatility(close, 10, 14)
+rvi = ta.rvol(close, 10, 14)
 ```
 
 ### 8. Ultimate Oscillator
@@ -1233,7 +1233,7 @@ true_range = ta.true_range(high, low, close)
 
 ```python
 # Example
-mass_idx = ta.mass_index(high, low, 9, 25)
+mass_idx = ta.massindex(high, low, 9, 25)
 
 # Reversal signal
 for i in range(1, len(mass_idx)):
@@ -1257,7 +1257,7 @@ for i in range(1, len(mass_idx)):
 
 ```python
 # Example
-bb_percent_b = ta.bbands_percent_b(close, 20, 2)
+bb_percent_b = ta.bbpercent(close, 20, 2)
 
 # Interpret position
 for i, value in enumerate(bb_percent_b):
@@ -1287,7 +1287,7 @@ for i, value in enumerate(bb_percent_b):
 
 ```python
 # Example
-bb_bandwidth = ta.bbands_bandwidth(close, 20, 2)
+bb_bandwidth = ta.bbwidth(close, 20, 2)
 
 # Identify squeeze and expansion
 for i in range(1, len(bb_bandwidth)):
@@ -1361,7 +1361,7 @@ for i, value in enumerate(hv):
 
 ```python
 # Example
-ulcer_idx = ta.ulcer_index(close, 14)
+ulcer_idx = ta.ulcerindex(close, 14)
 
 # Risk assessment
 for i, value in enumerate(ulcer_idx):
@@ -1388,7 +1388,7 @@ for i, value in enumerate(ulcer_idx):
 
 ```python
 # Example
-starc_upper, starc_middle, starc_lower = ta.starc_bands(high, low, close, 20, 15, 2.0)
+starc_upper, starc_middle, starc_lower = ta.starc(high, low, close, 20, 15, 2.0)
 
 # STARC band signals
 for i in range(len(close)):
@@ -1631,7 +1631,7 @@ for i in range(len(nvi)):
 
 ```python
 # Example
-vol_osc = ta.volume_oscillator(volume, 5, 10)
+vol_osc = ta.volosc(volume, 5, 10)
 
 # Volume trends
 for i, value in enumerate(vol_osc):
@@ -1897,8 +1897,8 @@ for i in range(1, len(ppo_line)):
 
 ```python
 # Example
-po_sma = ta.price_oscillator(close, 10, 20, "SMA")
-po_ema = ta.price_oscillator(close, 10, 20, "EMA")
+po_sma = ta.po(close, 10, 20, "SMA")
+po_ema = ta.po(close, 10, 20, "EMA")
 ```
 
 ### 9. Detrended Price Oscillator (DPO)
@@ -1968,7 +1968,7 @@ Statistical indicators apply mathematical and statistical methods to price data.
 
 ```python
 # Example
-linreg_14 = ta.linear_regression(close, 14)
+linreg_14 = ta.linreg(close, 14)
 
 # Trend direction
 for i in range(1, len(linreg_14)):
@@ -1989,7 +1989,7 @@ for i in range(1, len(linreg_14)):
 
 ```python
 # Example
-lr_slope_14 = ta.linear_regression_slope(close, 14)
+lr_slope_14 = ta.lrslope(close, 14)
 
 # Trend strength
 for i, slope in enumerate(lr_slope_14):
@@ -2074,7 +2074,7 @@ print(f"20-day volatility: {volatility[-1]:.2f}")
 
 ```python
 # Example
-tsf_14 = ta.time_series_forecast(close, 14)
+tsf_14 = ta.tsf(close, 14)
 
 # Compare forecast with actual
 if not np.isnan(tsf_14[-2]):  # Previous forecast
@@ -2145,7 +2145,7 @@ Hybrid indicators combine multiple calculation methods for comprehensive analysi
 
 ```python
 # Example
-di_plus, di_minus, adx = ta.adx_system(high, low, close, 14)
+di_plus, di_minus, adx = ta.adx(high, low, close, 14)
 
 # Trading signals
 for i in range(len(adx)):
@@ -2172,7 +2172,7 @@ for i in range(len(adx)):
 
 ```python
 # Example
-aroon_up, aroon_down = ta.aroon_system(high, low, 25)
+aroon_up, aroon_down = ta.aroon(high, low, 25)
 
 # Trend identification
 for i in range(len(aroon_up)):
@@ -2259,7 +2259,7 @@ for i in range(1, len(sar_trend)):
 
 ```python
 # Example
-dmi_plus, dmi_minus = ta.directional_movement(high, low, close, 14)
+dmi_plus, dmi_minus = ta.dmi(high, low, close, 14)
 
 # Crossover signals
 for i in range(1, len(dmi_plus)):
@@ -2305,7 +2305,7 @@ for i in range(len(close)):
 
 ```python
 # Example
-ht_trendline = ta.hilbert_trendline(close)
+ht_trendline = ta.ht(close)
 
 # Smooth trend indicator
 for i in range(1, len(close)):
@@ -2349,7 +2349,7 @@ for i, value in enumerate(zigzag):
 
 ```python
 # Example
-fractal_high, fractal_low = ta.williams_fractals(high, low, 2)
+fractal_high, fractal_low = ta.fractals(high, low, 2)
 
 # Identify fractal signals
 for i in range(len(high)):
@@ -2373,7 +2373,7 @@ for i in range(len(high)):
 
 ```python
 # Example
-rwi_high, rwi_low = ta.random_walk_index(high, low, close, 14)
+rwi_high, rwi_low = ta.rwi(high, low, close, 14)
 
 # RWI signals
 for i in range(len(rwi_high)):
