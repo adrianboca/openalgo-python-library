@@ -16,10 +16,10 @@
 
 ## Introduction
 
-The OpenAlgo Technical Indicators library provides 100+ professional-grade technical analysis indicators with TradingView Pine Script-like syntax. All indicators are optimized with NumPy and Numba for exceptional performance.
+The OpenAlgo Technical Indicators library provides 100+ professional-grade technical analysis indicators with intuitive, professional syntax. All indicators are optimized with NumPy and Numba for exceptional performance.
 
 ### Key Features
-- ✅ TradingView-compatible calculations
+- ✅ Industry-standard calculations
 - ✅ High-performance implementation with Numba JIT compilation
 - ✅ Support for numpy arrays, pandas Series, and Python lists
 - ✅ Comprehensive input validation
@@ -354,7 +354,137 @@ for i in range(len(direction)):
         print(f"Day {i}: {signal}, Supertrend: {supertrend[i]:.2f}")
 ```
 
-### 14. Ichimoku Cloud
+### 14. Triangular Moving Average (TRIMA)
+
+**Description**: Double-smoothed moving average that applies SMA twice for enhanced smoothing.
+
+**Formula**: TRIMA = SMA(SMA(Close, n), n) where n = (period + 1) / 2
+
+**Parameters**:
+- `data`: Price data
+- `period`: Number of periods
+
+**Returns**: Array of TRIMA values
+
+```python
+# Example
+trima_20 = ta.trima(close, 20)
+
+# Compare with regular SMA
+sma_20 = ta.sma(close, 20)
+print(f"TRIMA is smoother than SMA due to double smoothing")
+```
+
+### 15. McGinley Dynamic
+
+**Description**: Moving average that automatically adjusts for market speed changes.
+
+**Formula**: MD[i] = MD[i-1] + (Close[i] - MD[i-1]) / (N × (Close[i]/MD[i-1])^4)
+
+**Parameters**:
+- `data`: Price data
+- `period`: Number of periods
+
+**Returns**: Array of McGinley Dynamic values
+
+```python
+# Example
+md_14 = ta.mcginley(close, 14)
+
+# Adapts to market conditions
+for i in range(len(md_14)):
+    if not np.isnan(md_14[i]):
+        distance = abs(close[i] - md_14[i])
+        print(f"Day {i}: McGinley Dynamic adaption distance: {distance:.2f}")
+```
+
+### 16. VIDYA (Variable Index Dynamic Average)
+
+**Description**: Uses Chande Momentum Oscillator to adjust EMA smoothing constant.
+
+**Formula**: VIDYA[i] = VIDYA[i-1] + alpha × |CMO[i]| / 100 × (Close[i] - VIDYA[i-1])
+
+**Parameters**:
+- `data`: Price data
+- `period`: CMO period (default: 14)
+- `alpha`: Alpha factor (default: 0.2)
+
+**Returns**: Array of VIDYA values
+
+```python
+# Example
+vidya = ta.vidya(close, 14, 0.2)
+
+# More responsive in trending markets
+ema_14 = ta.ema(close, 14)
+print(f"VIDYA adapts to volatility while EMA remains constant")
+```
+
+### 17. Alligator (Bill Williams)
+
+**Description**: Three smoothed moving averages with different periods and shifts.
+
+**Components**:
+- Jaw (blue): 13-period SMMA, shifted 8 bars forward
+- Teeth (red): 8-period SMMA, shifted 5 bars forward
+- Lips (green): 5-period SMMA, shifted 3 bars forward
+
+**Parameters**:
+- `data`: Price data (typically (high + low) / 2)
+- `jaw_period`: Jaw period (default: 13)
+- `jaw_shift`: Jaw shift (default: 8)
+- `teeth_period`: Teeth period (default: 8)
+- `teeth_shift`: Teeth shift (default: 5)
+- `lips_period`: Lips period (default: 5)
+- `lips_shift`: Lips shift (default: 3)
+
+**Returns**: Tuple of (jaw, teeth, lips)
+
+```python
+# Example
+hl2 = (high + low) / 2
+jaw, teeth, lips = ta.alligator(hl2)
+
+# Alligator states
+for i in range(len(close)):
+    if not np.isnan(jaw[i]):
+        if lips[i] > teeth[i] > jaw[i]:
+            print(f"Day {i}: Alligator eating (strong uptrend)")
+        elif lips[i] < teeth[i] < jaw[i]:
+            print(f"Day {i}: Alligator eating (strong downtrend)")
+        elif abs(lips[i] - jaw[i]) < (jaw[i] * 0.01):  # Lines close together
+            print(f"Day {i}: Alligator sleeping (consolidation)")
+```
+
+### 18. Moving Average Envelopes
+
+**Description**: Percentage-based bands around a moving average.
+
+**Formula**: 
+- Upper = MA × (1 + percentage/100)
+- Lower = MA × (1 - percentage/100)
+
+**Parameters**:
+- `data`: Price data
+- `period`: MA period (default: 20)
+- `percentage`: Envelope percentage (default: 2.5)
+- `ma_type`: "SMA" or "EMA" (default: "SMA")
+
+**Returns**: Tuple of (upper_envelope, middle_line, lower_envelope)
+
+```python
+# Example
+upper, middle, lower = ta.ma_envelopes(close, 20, 2.5, "SMA")
+
+# Trading signals
+for i in range(len(close)):
+    if close[i] > upper[i]:
+        print(f"Day {i}: Price above upper envelope - potential sell")
+    elif close[i] < lower[i]:
+        print(f"Day {i}: Price below lower envelope - potential buy")
+```
+
+### 19. Ichimoku Cloud
 
 **Description**: Comprehensive trend-following system with multiple components for support/resistance and trend identification.
 
@@ -376,6 +506,35 @@ tenkan, kijun, senkou_a, senkou_b, chikou = ta.ichimoku(high, low, close)
 # Trading signals
 if close[-1] > tenkan[-1] and tenkan[-1] > kijun[-1]:
     print("Bullish signal: Price above Tenkan, Tenkan above Kijun")
+```
+
+### 20. Chande Kroll Stop
+
+**Description**: Volatility-based trailing stop that adapts to market conditions using ATR.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `close`: Close prices
+- `period`: ATR period (default: 10)
+- `atr_multiplier`: ATR multiplier (default: 1.0)
+
+**Returns**: Tuple of (Long Stop, Short Stop)
+
+```python
+# Example
+long_stop, short_stop = ta.ckstop(high, low, close, 10, 1.0)
+
+# Stop-loss management
+for i in range(len(close)):
+    if not np.isnan(long_stop[i]) and not np.isnan(short_stop[i]):
+        print(f"Day {i}: Long stop at {long_stop[i]:.2f}, Short stop at {short_stop[i]:.2f}")
+        
+        # Example position management
+        if close[i] < long_stop[i]:
+            print(f"Day {i}: Long position stopped out")
+        elif close[i] > short_stop[i]:
+            print(f"Day {i}: Short position stopped out")
 ```
 
 ---
@@ -516,6 +675,339 @@ for i, value in enumerate(williams_r):
             print(f"Day {i}: Overbought (%R={value:.2f})")
         elif value < -80:
             print(f"Day {i}: Oversold (%R={value:.2f})")
+```
+
+### 6. Balance of Power (BOP)
+
+**Description**: Measures the strength of buying versus selling pressure.
+
+**Formula**: BOP = (Close - Open) / (High - Low)
+
+**Parameters**:
+- `open`: Open prices
+- `high`: High prices
+- `low`: Low prices  
+- `close`: Close prices
+
+**Returns**: Array of BOP values (-1 to +1)
+
+```python
+# Example
+bop = ta.bop(open_prices, high, low, close)
+
+# BOP interpretation
+for i, value in enumerate(bop):
+    if not np.isnan(value):
+        if value > 0.5:
+            print(f"Day {i}: Strong buying pressure (BOP={value:.2f})")
+        elif value < -0.5:
+            print(f"Day {i}: Strong selling pressure (BOP={value:.2f})")
+```
+
+### 7. Elder Ray Index
+
+**Description**: Shows buying and selling pressure relative to EMA.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `close`: Close prices
+- `period`: EMA period (default: 13)
+
+**Returns**: Tuple of (Bull Power, Bear Power)
+
+```python
+# Example
+bull_power, bear_power = ta.elderray(high, low, close, 13)
+
+# Elder Ray signals
+for i in range(len(bull_power)):
+    if not np.isnan(bull_power[i]) and not np.isnan(bear_power[i]):
+        if bull_power[i] > 0 and bear_power[i] > 0:
+            print(f"Day {i}: Strong bullish momentum")
+        elif bull_power[i] < 0 and bear_power[i] < 0:
+            print(f"Day {i}: Strong bearish momentum")
+```
+
+### 8. Fisher Transform
+
+**Description**: Converts price to Gaussian distribution for clearer signals.
+
+**Parameters**:
+- `data`: Price data (typically median price)
+- `period`: Smoothing period (default: 10)
+
+**Returns**: Tuple of (Fisher Transform, Trigger line)
+
+```python
+# Example
+fisher, trigger = ta.fisher(close, 10)
+
+# Fisher Transform signals
+for i in range(1, len(fisher)):
+    if not np.isnan(fisher[i]) and not np.isnan(trigger[i]):
+        if fisher[i] > trigger[i] and fisher[i-1] <= trigger[i-1]:
+            print(f"Day {i}: Fisher Transform bullish crossover")
+        elif fisher[i] < trigger[i] and fisher[i-1] >= trigger[i-1]:
+            print(f"Day {i}: Fisher Transform bearish crossover")
+```
+
+### 9. Connors RSI
+
+**Description**: Combines RSI, price streaks, and rate of change for enhanced momentum analysis.
+
+**Parameters**:
+- `data`: Close prices
+- `rsi_period`: RSI period (default: 3)
+- `streak_period`: Streak period (default: 2)
+- `roc_period`: ROC period (default: 100)
+
+**Returns**: Array of Connors RSI values (0-100)
+
+```python
+# Example
+crsi = ta.crsi(close, 3, 2, 100)
+
+# Connors RSI signals
+for i, value in enumerate(crsi):
+    if not np.isnan(value):
+        if value > 90:
+            print(f"Day {i}: Extremely overbought (CRSI={value:.1f})")
+        elif value < 10:
+            print(f"Day {i}: Extremely oversold (CRSI={value:.1f})")
+```
+
+### 11. Choppiness Index (CHOP)
+
+**Description**: Measures market choppiness on a 0-100 scale. Higher values indicate sideways/choppy markets.
+
+**Formula**: CHOP = 100 × log10(ATR(n) × n / (Max(High, n) - Min(Low, n))) / log10(n)
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices  
+- `close`: Close prices
+- `period`: Number of periods (default: 14)
+
+**Returns**: Array of CHOP values (0-100)
+
+```python
+# Example
+chop = ta.chop(high, low, close, 14)
+
+# Interpret choppiness
+for i, value in enumerate(chop):
+    if not np.isnan(value):
+        if value > 61.8:
+            print(f"Day {i}: Choppy market (CHOP={value:.1f})")
+        elif value < 38.2:
+            print(f"Day {i}: Trending market (CHOP={value:.1f})")
+```
+
+### 12. Know Sure Thing (KST)
+
+**Description**: Momentum oscillator based on multiple rate-of-change periods.
+
+**Parameters**:
+- `close`: Close prices
+- `roc1`, `roc2`, `roc3`, `roc4`: ROC periods (default: 10, 15, 20, 30)
+- `sma1`, `sma2`, `sma3`, `sma4`: SMA periods (default: 10, 10, 10, 15)
+- `signal_period`: Signal line SMA period (default: 9)
+
+**Returns**: Tuple of (KST line, Signal line)
+
+```python
+# Example
+kst_line, kst_signal = ta.kst(close)
+
+# Signal line crossovers
+for i in range(1, len(kst_line)):
+    if not np.isnan(kst_line[i]) and not np.isnan(kst_signal[i]):
+        if kst_line[i] > kst_signal[i] and kst_line[i-1] <= kst_signal[i-1]:
+            print(f"Day {i}: KST bullish crossover")
+```
+
+### 13. True Strength Index (TSI)
+
+**Description**: Dual-smoothed momentum oscillator that reduces noise.
+
+**Parameters**:
+- `close`: Close prices
+- `long_period`: First smoothing period (default: 25)
+- `short_period`: Second smoothing period (default: 13)
+- `signal_period`: Signal line EMA period (default: 13)
+
+**Returns**: Tuple of (TSI line, Signal line)
+
+```python
+# Example
+tsi_line, tsi_signal = ta.tsi(close, 25, 13, 13)
+
+# Zero line crossovers
+for i in range(1, len(tsi_line)):
+    if not np.isnan(tsi_line[i]) and not np.isnan(tsi_line[i-1]):
+        if tsi_line[i] > 0 and tsi_line[i-1] <= 0:
+            print(f"Day {i}: TSI bullish zero crossover")
+```
+
+### 14. Vortex Indicator (VI)
+
+**Description**: Identifies trend changes by comparing positive and negative vortex movements.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `close`: Close prices
+- `period`: Number of periods (default: 14)
+
+**Returns**: Tuple of (VI+, VI-)
+
+```python
+# Example
+vi_plus, vi_minus = ta.vi(high, low, close, 14)
+
+# VI crossovers
+for i in range(1, len(vi_plus)):
+    if not np.isnan(vi_plus[i]) and not np.isnan(vi_minus[i]):
+        if vi_plus[i] > vi_minus[i] and vi_plus[i-1] <= vi_minus[i-1]:
+            print(f"Day {i}: Bullish VI crossover")
+        elif vi_plus[i] < vi_minus[i] and vi_plus[i-1] >= vi_minus[i-1]:
+            print(f"Day {i}: Bearish VI crossover")
+```
+
+### 15. Schaff Trend Cycle (STC)
+
+**Description**: Combines MACD concepts with stochastic oscillator for early trend identification.
+
+**Parameters**:
+- `close`: Close prices
+- `fast_period`: Fast EMA period (default: 23)
+- `slow_period`: Slow EMA period (default: 50)
+- `cycle_period`: Stochastic period (default: 10)
+- `d1_period`: First %K smoothing (default: 3)
+- `d2_period`: Second %K smoothing (default: 3)
+
+**Returns**: Array of STC values (0-100)
+
+```python
+# Example
+stc = ta.stc(close, 23, 50, 10, 3, 3)
+
+# STC signals
+for i, value in enumerate(stc):
+    if not np.isnan(value):
+        if value > 75:
+            print(f"Day {i}: STC overbought ({value:.1f})")
+        elif value < 25:
+            print(f"Day {i}: STC oversold ({value:.1f})")
+```
+
+### 16. Gator Oscillator
+
+**Description**: Measures convergence/divergence of Alligator indicator lines.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `jaw_period`: Jaw (blue line) period (default: 13)
+- `jaw_shift`: Jaw shift forward (default: 8)
+- `teeth_period`: Teeth (red line) period (default: 8)
+- `teeth_shift`: Teeth shift forward (default: 5)
+- `lips_period`: Lips (green line) period (default: 5)
+- `lips_shift`: Lips shift forward (default: 3)
+
+**Returns**: Tuple of (Upper Gator, Lower Gator)
+
+```python
+# Example
+gator_upper, gator_lower = ta.gator_oscillator(high, low)
+
+# Gator phases
+for i in range(len(gator_upper)):
+    if not np.isnan(gator_upper[i]) and not np.isnan(gator_lower[i]):
+        if gator_upper[i] > 0 and gator_lower[i] > 0:
+            print(f"Day {i}: Gator eating (strong trend)")
+        else:
+            print(f"Day {i}: Gator sleeping (consolidation)")
+```
+
+### 17. Stochastic RSI
+
+**Description**: Applies Stochastic oscillator formula to RSI values instead of price.
+
+**Parameters**:
+- `data`: Close prices
+- `rsi_period`: RSI calculation period (default: 14)
+- `stoch_period`: Stochastic period (default: 14)
+- `k_period`: %K smoothing period (default: 3)
+- `d_period`: %D smoothing period (default: 3)
+
+**Returns**: Tuple of (StochRSI %K, StochRSI %D)
+
+```python
+# Example
+stoch_k, stoch_d = ta.stochrsi(close, 14, 14, 3, 3)
+
+# Trading signals
+for i in range(len(stoch_k)):
+    if not np.isnan(stoch_k[i]) and not np.isnan(stoch_d[i]):
+        if stoch_k[i] > 80:
+            print(f"Day {i}: StochRSI overbought (K={stoch_k[i]:.1f})")
+        elif stoch_k[i] < 20:
+            print(f"Day {i}: StochRSI oversold (K={stoch_k[i]:.1f})")
+```
+
+### 18. Relative Vigor Index (RVI)
+
+**Description**: Compares closing price to the trading range, similar to Stochastic but uses closing price position.
+
+**Parameters**:
+- `open`: Open prices
+- `high`: High prices
+- `low`: Low prices
+- `close`: Close prices
+- `period`: Number of periods (default: 10)
+
+**Returns**: Tuple of (RVI line, Signal line)
+
+```python
+# Example
+rvi_line, rvi_signal = ta.rvi(open_prices, high, low, close, 10)
+
+# RVI crossovers
+for i in range(1, len(rvi_line)):
+    if not np.isnan(rvi_line[i]) and not np.isnan(rvi_signal[i]):
+        if rvi_line[i] > rvi_signal[i] and rvi_line[i-1] <= rvi_signal[i-1]:
+            print(f"Day {i}: RVI bullish crossover")
+        elif rvi_line[i] < rvi_signal[i] and rvi_line[i-1] >= rvi_signal[i-1]:
+            print(f"Day {i}: RVI bearish crossover")
+```
+
+### 19. Chaikin Oscillator
+
+**Description**: Measures momentum of the Accumulation/Distribution Line using MACD formula.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `close`: Close prices
+- `volume`: Volume data
+- `fast_period`: Fast EMA period (default: 3)
+- `slow_period`: Slow EMA period (default: 10)
+
+**Returns**: Array of Chaikin Oscillator values
+
+```python
+# Example
+chaikin_osc = ta.cho(high, low, close, volume, 3, 10)
+
+# Zero line crossovers
+for i in range(1, len(chaikin_osc)):
+    if not np.isnan(chaikin_osc[i]) and not np.isnan(chaikin_osc[i-1]):
+        if chaikin_osc[i] > 0 and chaikin_osc[i-1] <= 0:
+            print(f"Day {i}: Chaikin bullish crossover")
+        elif chaikin_osc[i] < 0 and chaikin_osc[i-1] >= 0:
+            print(f"Day {i}: Chaikin bearish crossover")
 ```
 
 ---
@@ -748,6 +1240,163 @@ for i in range(1, len(mass_idx)):
     if not np.isnan(mass_idx[i]):
         if mass_idx[i] > 27 and mass_idx[i-1] <= 27:
             print(f"Day {i}: Mass Index reversal signal")
+```
+
+### 12. Bollinger Bands %B
+
+**Description**: Shows where price is relative to Bollinger Bands as a percentage.
+
+**Formula**: %B = (Close - Lower Band) / (Upper Band - Lower Band)
+
+**Parameters**:
+- `close`: Close prices
+- `period`: MA period (default: 20)
+- `std_dev`: Standard deviations (default: 2)
+
+**Returns**: Array of %B values
+
+```python
+# Example
+bb_percent_b = ta.bbands_percent_b(close, 20, 2)
+
+# Interpret position
+for i, value in enumerate(bb_percent_b):
+    if not np.isnan(value):
+        if value > 1.0:
+            print(f"Day {i}: Above upper band (%B={value:.2f})")
+        elif value < 0.0:
+            print(f"Day {i}: Below lower band (%B={value:.2f})")
+        elif value > 0.8:
+            print(f"Day {i}: Near upper band (%B={value:.2f})")
+        elif value < 0.2:
+            print(f"Day {i}: Near lower band (%B={value:.2f})")
+```
+
+### 13. Bollinger Bandwidth
+
+**Description**: Measures the width of Bollinger Bands as a percentage of the middle band.
+
+**Formula**: Bandwidth = (Upper Band - Lower Band) / Middle Band × 100
+
+**Parameters**:
+- `close`: Close prices
+- `period`: MA period (default: 20)
+- `std_dev`: Standard deviations (default: 2)
+
+**Returns**: Array of Bandwidth values
+
+```python
+# Example
+bb_bandwidth = ta.bbands_bandwidth(close, 20, 2)
+
+# Identify squeeze and expansion
+for i in range(1, len(bb_bandwidth)):
+    if not np.isnan(bb_bandwidth[i]):
+        if bb_bandwidth[i] < 10:  # Low bandwidth threshold
+            print(f"Day {i}: Bollinger Band squeeze (BW={bb_bandwidth[i]:.1f}%)")
+        elif bb_bandwidth[i] > bb_bandwidth[i-1] * 1.2:
+            print(f"Day {i}: Band expansion (BW={bb_bandwidth[i]:.1f}%)")
+```
+
+### 14. Chandelier Exit
+
+**Description**: Trailing stop-loss indicator based on ATR.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `close`: Close prices
+- `period`: ATR period (default: 22)
+- `multiplier`: ATR multiplier (default: 3.0)
+
+**Returns**: Tuple of (Chandelier Exit Long, Chandelier Exit Short)
+
+```python
+# Example
+ce_long, ce_short = ta.chandelier_exit(high, low, close, 22, 3.0)
+
+# Trailing stops
+for i, (long_exit, short_exit) in enumerate(zip(ce_long, ce_short)):
+    if not np.isnan(long_exit) and not np.isnan(short_exit):
+        print(f"Day {i}: Long exit at {long_exit:.2f}, Short exit at {short_exit:.2f}")
+```
+
+### 15. Historical Volatility (HV)
+
+**Description**: Measures the volatility of returns over a specified period.
+
+**Formula**: HV = StdDev(ln(Close/Close[1])) × √252 × 100
+
+**Parameters**:
+- `close`: Close prices
+- `period`: Number of periods (default: 20)
+- `annualize`: Annualize result (default: True)
+
+**Returns**: Array of HV values (percentage)
+
+```python
+# Example
+hv = ta.hv(close, 20, True)
+
+# Volatility levels
+for i, value in enumerate(hv):
+    if not np.isnan(value):
+        if value > 30:
+            print(f"Day {i}: High volatility (HV={value:.1f}%)")
+        elif value < 10:
+            print(f"Day {i}: Low volatility (HV={value:.1f}%)")
+```
+
+### 16. Ulcer Index
+
+**Description**: Measures downside volatility by focusing on drawdowns.
+
+**Formula**: UI = √(Σ(Drawdown²) / n)
+
+**Parameters**:
+- `close`: Close prices
+- `period`: Number of periods (default: 14)
+
+**Returns**: Array of Ulcer Index values
+
+```python
+# Example
+ulcer_idx = ta.ulcer_index(close, 14)
+
+# Risk assessment
+for i, value in enumerate(ulcer_idx):
+    if not np.isnan(value):
+        if value > 5:
+            print(f"Day {i}: High downside risk (UI={value:.2f})")
+        elif value < 2:
+            print(f"Day {i}: Low downside risk (UI={value:.2f})")
+```
+
+### 17. STARC Bands
+
+**Description**: Stoller Channels based on ATR instead of standard deviation.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `close`: Close prices
+- `ma_period`: Moving average period (default: 20)
+- `atr_period`: ATR period (default: 15)
+- `multiplier`: ATR multiplier (default: 2.0)
+
+**Returns**: Tuple of (Upper STARC, Middle STARC, Lower STARC)
+
+```python
+# Example
+starc_upper, starc_middle, starc_lower = ta.starc_bands(high, low, close, 20, 15, 2.0)
+
+# STARC band signals
+for i in range(len(close)):
+    if not np.isnan(starc_upper[i]) and not np.isnan(starc_lower[i]):
+        if close[i] > starc_upper[i]:
+            print(f"Day {i}: Above upper STARC band")
+        elif close[i] < starc_lower[i]:
+            print(f"Day {i}: Below lower STARC band")
 ```
 
 ---
@@ -1011,6 +1660,58 @@ vroc_25 = ta.vroc(volume, 25)
 for i, value in enumerate(vroc_25):
     if not np.isnan(value) and value > 100:
         print(f"Day {i}: Volume surge ({value:.2f}% increase)")
+```
+
+### 12. Klinger Volume Oscillator (KVO)
+
+**Description**: Combines price trend with volume flow to predict price reversals.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `close`: Close prices
+- `volume`: Volume data
+- `fast_period`: Fast EMA period (default: 34)
+- `slow_period`: Slow EMA period (default: 55)
+
+**Returns**: Array of KVO values
+
+```python
+# Example
+kvo = ta.kvo(high, low, close, volume, 34, 55)
+
+# KVO signals
+for i in range(1, len(kvo)):
+    if not np.isnan(kvo[i]) and not np.isnan(kvo[i-1]):
+        if kvo[i] > 0 and kvo[i-1] <= 0:
+            print(f"Day {i}: KVO bullish signal")
+        elif kvo[i] < 0 and kvo[i-1] >= 0:
+            print(f"Day {i}: KVO bearish signal")
+```
+
+### 13. Price Volume Trend (PVT)
+
+**Description**: Combines relative price change with volume to measure buying and selling pressure.
+
+**Formula**: PVT = Previous PVT + Volume × ((Close - Previous Close) / Previous Close)
+
+**Parameters**:
+- `close`: Close prices
+- `volume`: Volume data
+
+**Returns**: Array of PVT values
+
+```python
+# Example
+pvt = ta.pvt(close, volume)
+
+# PVT trend analysis
+for i in range(20, len(pvt)):
+    if not np.isnan(pvt[i]):
+        trend_strength = (pvt[i] - pvt[i-20]) / abs(pvt[i-20]) * 100 if pvt[i-20] != 0 else 0
+        if abs(trend_strength) > 20:
+            direction = "bullish" if trend_strength > 0 else "bearish"
+            print(f"Day {i}: Strong {direction} PVT trend ({trend_strength:.1f}%)")
 ```
 
 ---
@@ -1611,6 +2312,78 @@ for i in range(1, len(close)):
     if not np.isnan(ht_trendline[i]):
         if close[i] > ht_trendline[i] and close[i-1] <= ht_trendline[i-1]:
             print(f"Day {i}: Price crossed above Hilbert Trendline")
+```
+
+### 8. Zig Zag
+
+**Description**: Identifies price reversals by filtering out small price movements.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `deviation`: Minimum percentage change (default: 5.0)
+
+**Returns**: Array of Zig Zag values (with NaN for filtered periods)
+
+```python
+# Example
+zigzag = ta.zigzag(high, low, 5.0)
+
+# Identify reversal points
+for i, value in enumerate(zigzag):
+    if not np.isnan(value):
+        if i > 0 and np.isnan(zigzag[i-1]):
+            print(f"Day {i}: Reversal point at {value:.2f}")
+```
+
+### 9. Williams Fractals
+
+**Description**: Identifies potential reversal points using fractal geometry.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `period`: Number of periods (default: 2)
+
+**Returns**: Tuple of (Fractal High, Fractal Low)
+
+```python
+# Example
+fractal_high, fractal_low = ta.williams_fractals(high, low, 2)
+
+# Identify fractal signals
+for i in range(len(high)):
+    if not np.isnan(fractal_high[i]):
+        print(f"Day {i}: Bearish fractal at {high[i]:.2f}")
+    if not np.isnan(fractal_low[i]):
+        print(f"Day {i}: Bullish fractal at {low[i]:.2f}")
+```
+
+### 10. Random Walk Index (RWI)
+
+**Description**: Measures the likelihood that price movements are random.
+
+**Parameters**:
+- `high`: High prices
+- `low`: Low prices
+- `close`: Close prices
+- `period`: Number of periods (default: 14)
+
+**Returns**: Tuple of (RWI High, RWI Low)
+
+```python
+# Example
+rwi_high, rwi_low = ta.random_walk_index(high, low, close, 14)
+
+# RWI signals
+for i in range(len(rwi_high)):
+    if not np.isnan(rwi_high[i]) and not np.isnan(rwi_low[i]):
+        if rwi_high[i] > 1.0:
+            print(f"Day {i}: Strong uptrend (RWI High={rwi_high[i]:.2f})")
+        elif rwi_low[i] > 1.0:
+            print(f"Day {i}: Strong downtrend (RWI Low={rwi_low[i]:.2f})")
+        elif rwi_high[i] < 1.0 and rwi_low[i] < 1.0:
+            print(f"Day {i}: Random price movement")
 ```
 
 ---

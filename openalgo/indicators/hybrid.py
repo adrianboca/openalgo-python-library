@@ -522,3 +522,262 @@ class HT_TRENDLINE(BaseIndicator):
         validated_data, input_type, index = self.validate_input(data)
         result = self._calculate_ht_trendline(validated_data)
         return self.format_output(result, input_type, index)
+
+
+class ZigZag(BaseIndicator):
+    """
+    Zig Zag
+    
+    Zig Zag connects significant price swings and filters out smaller price movements.
+    
+    Formula: Connect swing highs and lows that exceed the deviation threshold.
+    """
+    
+    def __init__(self):
+        super().__init__("ZigZag")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_zigzag(high: np.ndarray, low: np.ndarray, close: np.ndarray, deviation: float) -> np.ndarray:
+        """Numba optimized Zig Zag calculation"""
+        n = len(close)
+        result = np.full(n, np.nan)
+        
+        if n < 3:
+            return result
+        
+        # Find first significant point
+        last_pivot_idx = 0
+        last_pivot_price = close[0]
+        last_pivot_type = 0  # 0 = unknown, 1 = high, -1 = low
+        result[0] = close[0]
+        
+        current_high = high[0]
+        current_low = low[0]
+        current_high_idx = 0
+        current_low_idx = 0
+        
+        for i in range(1, n):
+            # Update current extremes
+            if high[i] > current_high:
+                current_high = high[i]
+                current_high_idx = i
+            if low[i] < current_low:
+                current_low = low[i]
+                current_low_idx = i
+            
+            # Check for reversal from high
+            if last_pivot_type != -1:  # Not currently looking for high
+                change_from_high = (current_high - low[i]) / current_high * 100
+                if change_from_high >= deviation:
+                    # Reversal from high - mark the high
+                    result[current_high_idx] = current_high
+                    last_pivot_idx = current_high_idx
+                    last_pivot_price = current_high
+                    last_pivot_type = 1
+                    current_low = low[i]
+                    current_low_idx = i
+            
+            # Check for reversal from low  
+            if last_pivot_type != 1:  # Not currently looking for low
+                if current_low > 0:
+                    change_from_low = (high[i] - current_low) / current_low * 100
+                    if change_from_low >= deviation:
+                        # Reversal from low - mark the low
+                        result[current_low_idx] = current_low
+                        last_pivot_idx = current_low_idx
+                        last_pivot_price = current_low
+                        last_pivot_type = -1
+                        current_high = high[i]
+                        current_high_idx = i
+        
+        return result
+    
+    def calculate(self, high: Union[np.ndarray, pd.Series, list],
+                 low: Union[np.ndarray, pd.Series, list],
+                 close: Union[np.ndarray, pd.Series, list],
+                 deviation: float = 5.0) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Zig Zag
+        
+        Parameters:
+        -----------
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        deviation : float, default=5.0
+            Minimum percentage deviation for zig zag line
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            Zig Zag values in the same format as input
+        """
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        
+        result = self._calculate_zigzag(high_data, low_data, close_data, deviation)
+        return self.format_output(result, input_type, index)
+
+
+class WilliamsFractals(BaseIndicator):
+    """
+    Williams Fractals
+    
+    Identifies turning points (fractals) in price action.
+    
+    Fractal Up: High[n] > High[n-2] and High[n] > High[n-1] and High[n] > High[n+1] and High[n] > High[n+2]
+    Fractal Down: Low[n] < Low[n-2] and Low[n] < Low[n-1] and Low[n] < Low[n+1] and Low[n] < Low[n+2]
+    """
+    
+    def __init__(self):
+        super().__init__("Fractals")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_fractals(high: np.ndarray, low: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Numba optimized Williams Fractals calculation"""
+        n = len(high)
+        fractal_up = np.full(n, np.nan)
+        fractal_down = np.full(n, np.nan)
+        
+        for i in range(2, n - 2):
+            # Check for fractal up (peak)
+            if (high[i] > high[i-1] and high[i] > high[i-2] and 
+                high[i] > high[i+1] and high[i] > high[i+2]):
+                fractal_up[i] = high[i]
+            
+            # Check for fractal down (trough)
+            if (low[i] < low[i-1] and low[i] < low[i-2] and 
+                low[i] < low[i+1] and low[i] < low[i+2]):
+                fractal_down[i] = low[i]
+        
+        return fractal_up, fractal_down
+    
+    def calculate(self, high: Union[np.ndarray, pd.Series, list],
+                 low: Union[np.ndarray, pd.Series, list]) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """
+        Calculate Williams Fractals
+        
+        Parameters:
+        -----------
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (fractal_up, fractal_down) in the same format as input
+        """
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        
+        high_data, low_data = self.align_arrays(high_data, low_data)
+        
+        fractal_up, fractal_down = self._calculate_fractals(high_data, low_data)
+        
+        results = (fractal_up, fractal_down)
+        return self.format_multiple_outputs(results, input_type, index)
+
+
+class RandomWalkIndex(BaseIndicator):
+    """
+    Random Walk Index (RWI High/Low)
+    
+    Measures how much a security's price movement differs from a random walk.
+    
+    Formula:
+    RWI High = (High - Low[n]) / (ATR * sqrt(n))
+    RWI Low = (High[n] - Low) / (ATR * sqrt(n))
+    """
+    
+    def __init__(self):
+        super().__init__("RWI")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
+        """Calculate ATR"""
+        n = len(close)
+        tr = np.full(n, np.nan)
+        atr = np.full(n, np.nan)
+        
+        # Calculate True Range
+        tr[0] = high[0] - low[0]
+        for i in range(1, n):
+            tr[i] = max(high[i] - low[i], 
+                       abs(high[i] - close[i - 1]), 
+                       abs(low[i] - close[i - 1]))
+        
+        # Calculate ATR using simple moving average
+        for i in range(period - 1, n):
+            atr[i] = np.mean(tr[i - period + 1:i + 1])
+        
+        return atr
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_rwi(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Numba optimized RWI calculation"""
+        n = len(close)
+        rwi_high = np.full(n, np.nan)
+        rwi_low = np.full(n, np.nan)
+        
+        # Calculate ATR
+        atr = RandomWalkIndex._calculate_atr(high, low, close, period)
+        
+        for i in range(period - 1, n):
+            if atr[i] > 0:
+                # RWI High: (High - Low[n periods ago]) / (ATR * sqrt(n))
+                rwi_high[i] = (high[i] - low[i - period + 1]) / (atr[i] * np.sqrt(period))
+                
+                # RWI Low: (High[n periods ago] - Low) / (ATR * sqrt(n))
+                rwi_low[i] = (high[i - period + 1] - low[i]) / (atr[i] * np.sqrt(period))
+            else:
+                rwi_high[i] = 0.0
+                rwi_low[i] = 0.0
+        
+        return rwi_high, rwi_low
+    
+    def calculate(self, high: Union[np.ndarray, pd.Series, list],
+                 low: Union[np.ndarray, pd.Series, list],
+                 close: Union[np.ndarray, pd.Series, list],
+                 period: int = 14) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """
+        Calculate Random Walk Index
+        
+        Parameters:
+        -----------
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        period : int, default=14
+            Period for RWI calculation
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (rwi_high, rwi_low) in the same format as input
+        """
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        self.validate_period(period, len(close_data))
+        
+        rwi_high, rwi_low = self._calculate_rwi(high_data, low_data, close_data, period)
+        
+        results = (rwi_high, rwi_low)
+        return self.format_multiple_outputs(results, input_type, index)

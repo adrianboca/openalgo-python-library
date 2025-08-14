@@ -903,3 +903,480 @@ class MASS(BaseIndicator):
         result = self._calculate_sma(ratio, slow_period)
         
         return self.format_output(result, input_type, index)
+
+
+class BollingerBandsPercentB(BaseIndicator):
+    """
+    Bollinger Bands %B
+    
+    %B shows where price is in relation to the bands.
+    %B = 1 when price is at the upper band, 0 when at the lower band.
+    
+    Formula: %B = (Close - Lower Band) / (Upper Band - Lower Band)
+    """
+    
+    def __init__(self):
+        super().__init__("BB %B")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_sma(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate SMA"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            result[i] = np.mean(data[i - period + 1:i + 1])
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_stddev(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate rolling standard deviation"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            window = data[i - period + 1:i + 1]
+            mean_val = np.mean(window)
+            variance = np.mean((window - mean_val) ** 2)
+            result[i] = np.sqrt(variance)
+        
+        return result
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list],
+                 period: int = 20, std_dev: float = 2.0) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Bollinger Bands %B
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically closing prices)
+        period : int, default=20
+            Period for moving average and standard deviation
+        std_dev : float, default=2.0
+            Number of standard deviations for the bands
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            %B values in the same format as input
+        """
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        
+        # Calculate Bollinger Bands
+        sma = self._calculate_sma(validated_data, period)
+        stddev = self._calculate_stddev(validated_data, period)
+        
+        upper_band = sma + (stddev * std_dev)
+        lower_band = sma - (stddev * std_dev)
+        
+        # Calculate %B
+        percent_b = np.full_like(validated_data, np.nan)
+        for i in range(len(validated_data)):
+            if upper_band[i] != lower_band[i]:
+                percent_b[i] = (validated_data[i] - lower_band[i]) / (upper_band[i] - lower_band[i])
+            else:
+                percent_b[i] = 0.5
+        
+        return self.format_output(percent_b, input_type, index)
+
+
+class BollingerBandwidth(BaseIndicator):
+    """
+    Bollinger Bandwidth
+    
+    Bollinger Bandwidth measures the width of the Bollinger Bands.
+    Used to identify periods of low volatility (squeeze) and high volatility.
+    
+    Formula: Bandwidth = (Upper Band - Lower Band) / Middle Band
+    """
+    
+    def __init__(self):
+        super().__init__("BB Bandwidth")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_sma(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate SMA"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            result[i] = np.mean(data[i - period + 1:i + 1])
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_stddev(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate rolling standard deviation"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            window = data[i - period + 1:i + 1]
+            mean_val = np.mean(window)
+            variance = np.mean((window - mean_val) ** 2)
+            result[i] = np.sqrt(variance)
+        
+        return result
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list],
+                 period: int = 20, std_dev: float = 2.0) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Bollinger Bandwidth
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically closing prices)
+        period : int, default=20
+            Period for moving average and standard deviation
+        std_dev : float, default=2.0
+            Number of standard deviations for the bands
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            Bandwidth values in the same format as input
+        """
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        
+        # Calculate Bollinger Bands
+        sma = self._calculate_sma(validated_data, period)
+        stddev = self._calculate_stddev(validated_data, period)
+        
+        upper_band = sma + (stddev * std_dev)
+        lower_band = sma - (stddev * std_dev)
+        
+        # Calculate Bandwidth
+        bandwidth = np.full_like(validated_data, np.nan)
+        for i in range(len(validated_data)):
+            if sma[i] != 0:
+                bandwidth[i] = (upper_band[i] - lower_band[i]) / sma[i]
+            else:
+                bandwidth[i] = 0.0
+        
+        return self.format_output(bandwidth, input_type, index)
+
+
+class ChandelierExit(BaseIndicator):
+    """
+    Chandelier Exit
+    
+    A trailing stop-loss technique that follows price action.
+    
+    Formula:
+    Long Exit = Highest High(n) - ATR(n) × Multiplier
+    Short Exit = Lowest Low(n) + ATR(n) × Multiplier
+    """
+    
+    def __init__(self):
+        super().__init__("Chandelier Exit")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
+        """Calculate ATR"""
+        n = len(close)
+        tr = np.full(n, np.nan)
+        atr = np.full(n, np.nan)
+        
+        # Calculate True Range
+        tr[0] = high[0] - low[0]
+        for i in range(1, n):
+            tr[i] = max(high[i] - low[i], 
+                       abs(high[i] - close[i - 1]), 
+                       abs(low[i] - close[i - 1]))
+        
+        # Calculate ATR using SMA
+        for i in range(period - 1, n):
+            atr[i] = np.mean(tr[i - period + 1:i + 1])
+        
+        return atr
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_chandelier(high: np.ndarray, low: np.ndarray, close: np.ndarray, 
+                             period: int, multiplier: float) -> Tuple[np.ndarray, np.ndarray]:
+        """Numba optimized Chandelier Exit calculation"""
+        n = len(close)
+        long_exit = np.full(n, np.nan)
+        short_exit = np.full(n, np.nan)
+        
+        # Calculate ATR
+        atr = ChandelierExit._calculate_atr(high, low, close, period)
+        
+        for i in range(period - 1, n):
+            # Highest high and lowest low over period
+            highest_high = np.max(high[i - period + 1:i + 1])
+            lowest_low = np.min(low[i - period + 1:i + 1])
+            
+            # Calculate exits
+            long_exit[i] = highest_high - atr[i] * multiplier
+            short_exit[i] = lowest_low + atr[i] * multiplier
+        
+        return long_exit, short_exit
+    
+    def calculate(self, high: Union[np.ndarray, pd.Series, list],
+                 low: Union[np.ndarray, pd.Series, list],
+                 close: Union[np.ndarray, pd.Series, list],
+                 period: int = 22, multiplier: float = 3.0) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """
+        Calculate Chandelier Exit
+        
+        Parameters:
+        -----------
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        period : int, default=22
+            Period for highest/lowest and ATR calculation
+        multiplier : float, default=3.0
+            ATR multiplier
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (long_exit, short_exit) in the same format as input
+        """
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        self.validate_period(period, len(close_data))
+        
+        long_exit, short_exit = self._calculate_chandelier(high_data, low_data, close_data, period, multiplier)
+        
+        results = (long_exit, short_exit)
+        return self.format_multiple_outputs(results, input_type, index)
+
+
+class HistoricalVolatility(BaseIndicator):
+    """
+    Historical Volatility (HV)
+    
+    Measures the standard deviation of logarithmic returns over a specified period.
+    
+    Formula: HV = STDEV(ln(Close/Close[-1]), period) × sqrt(252) × 100
+    """
+    
+    def __init__(self):
+        super().__init__("HV")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_hv(data: np.ndarray, period: int, annualize: bool) -> np.ndarray:
+        """Numba optimized Historical Volatility calculation"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        # Calculate log returns
+        log_returns = np.full(n, np.nan)
+        for i in range(1, n):
+            if data[i - 1] > 0 and data[i] > 0:
+                log_returns[i] = np.log(data[i] / data[i - 1])
+        
+        # Calculate rolling standard deviation
+        for i in range(period, n):
+            window = log_returns[i - period + 1:i + 1]
+            valid_returns = window[~np.isnan(window)]
+            
+            if len(valid_returns) >= period:
+                mean_return = np.mean(valid_returns)
+                variance = np.mean((valid_returns - mean_return) ** 2)
+                std_dev = np.sqrt(variance)
+                
+                if annualize:
+                    result[i] = std_dev * np.sqrt(252) * 100  # Annualized percentage
+                else:
+                    result[i] = std_dev * 100  # Percentage
+        
+        return result
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list],
+                 period: int = 20, annualize: bool = True) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Historical Volatility
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically closing prices)
+        period : int, default=20
+            Period for volatility calculation
+        annualize : bool, default=True
+            Whether to annualize the volatility
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            Historical volatility values in the same format as input
+        """
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period + 1, len(validated_data))
+        
+        result = self._calculate_hv(validated_data, period, annualize)
+        return self.format_output(result, input_type, index)
+
+
+class UlcerIndex(BaseIndicator):
+    """
+    Ulcer Index
+    
+    Measures downside risk by calculating the depth and duration of drawdowns.
+    
+    Formula: UI = sqrt(sum((Close - MaxClose)^2 / MaxClose^2, period) / period) × 100
+    """
+    
+    def __init__(self):
+        super().__init__("Ulcer Index")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_ulcer_index(data: np.ndarray, period: int) -> np.ndarray:
+        """Numba optimized Ulcer Index calculation"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            sum_squared_drawdown = 0.0
+            
+            for j in range(period):
+                idx = i - period + 1 + j
+                
+                # Find maximum value from start of period to current point
+                max_value = np.max(data[i - period + 1:idx + 1])
+                
+                if max_value > 0:
+                    drawdown = (data[idx] - max_value) / max_value
+                    sum_squared_drawdown += drawdown * drawdown
+            
+            result[i] = np.sqrt(sum_squared_drawdown / period) * 100
+        
+        return result
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list],
+                 period: int = 14) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Ulcer Index
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically closing prices)
+        period : int, default=14
+            Period for Ulcer Index calculation
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            Ulcer Index values in the same format as input
+        """
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        
+        result = self._calculate_ulcer_index(validated_data, period)
+        return self.format_output(result, input_type, index)
+
+
+class STARCBands(BaseIndicator):
+    """
+    STARC Bands (Stoller Channels)
+    
+    STARC Bands use an SMA and Average True Range to create bands.
+    
+    Formula:
+    Upper Band = SMA + (multiplier × ATR)
+    Lower Band = SMA - (multiplier × ATR)
+    """
+    
+    def __init__(self):
+        super().__init__("STARC Bands")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_sma(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate SMA"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            result[i] = np.mean(data[i - period + 1:i + 1])
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
+        """Calculate ATR"""
+        n = len(close)
+        tr = np.full(n, np.nan)
+        atr = np.full(n, np.nan)
+        
+        # Calculate True Range
+        tr[0] = high[0] - low[0]
+        for i in range(1, n):
+            tr[i] = max(high[i] - low[i], 
+                       abs(high[i] - close[i - 1]), 
+                       abs(low[i] - close[i - 1]))
+        
+        # Calculate ATR using SMA
+        for i in range(period - 1, n):
+            atr[i] = np.mean(tr[i - period + 1:i + 1])
+        
+        return atr
+    
+    def calculate(self, high: Union[np.ndarray, pd.Series, list],
+                 low: Union[np.ndarray, pd.Series, list],
+                 close: Union[np.ndarray, pd.Series, list],
+                 ma_period: int = 20, atr_period: int = 15, 
+                 multiplier: float = 2.0) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
+        """
+        Calculate STARC Bands
+        
+        Parameters:
+        -----------
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        ma_period : int, default=20
+            Period for SMA calculation
+        atr_period : int, default=15
+            Period for ATR calculation
+        multiplier : float, default=2.0
+            ATR multiplier
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]
+            (upper_band, middle_line, lower_band) in the same format as input
+        """
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        
+        # Calculate SMA and ATR
+        sma = self._calculate_sma(close_data, ma_period)
+        atr = self._calculate_atr(high_data, low_data, close_data, atr_period)
+        
+        # Calculate bands
+        upper_band = sma + (atr * multiplier)
+        lower_band = sma - (atr * multiplier)
+        
+        results = (upper_band, sma, lower_band)
+        return self.format_multiple_outputs(results, input_type, index)

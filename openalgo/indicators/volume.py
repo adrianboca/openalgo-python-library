@@ -766,3 +766,164 @@ class VROC(BaseIndicator):
         
         result = self._calculate_vroc(validated_volume, period)
         return self.format_output(result, input_type, index)
+
+
+class KlingerVolumeOscillator(BaseIndicator):
+    """
+    Klinger Volume Oscillator (KVO)
+    
+    The KVO is designed to predict price reversals in a market by comparing 
+    volume to price movement.
+    
+    Formula: KVO = EMA(VF, 34) - EMA(VF, 55)
+    Where VF = Volume Force = Volume × Trend × (dm / cm)
+    """
+    
+    def __init__(self):
+        super().__init__("KVO")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_kvo(high: np.ndarray, low: np.ndarray, close: np.ndarray, volume: np.ndarray,
+                      fast_period: int, slow_period: int) -> np.ndarray:
+        """Numba optimized KVO calculation"""
+        n = len(close)
+        result = np.full(n, np.nan)
+        
+        # Calculate typical price and money flow
+        tp = (high + low + close) / 3
+        money_flow = np.zeros(n)
+        
+        # Calculate trend
+        trend = np.zeros(n)
+        trend[0] = 1
+        
+        for i in range(1, n):
+            if tp[i] > tp[i-1]:
+                trend[i] = 1
+            elif tp[i] < tp[i-1]:
+                trend[i] = -1
+            else:
+                trend[i] = trend[i-1]
+        
+        # Calculate Volume Force
+        vf = np.zeros(n)
+        for i in range(n):
+            dm = high[i] - low[i]
+            if dm != 0:
+                cm = close[i] - close[i-1] if i > 0 else 0
+                vf[i] = volume[i] * trend[i] * (dm / (dm + abs(cm)) if (dm + abs(cm)) != 0 else 0)
+            else:
+                vf[i] = 0
+        
+        # Calculate EMAs
+        fast_ema = np.zeros(n)
+        slow_ema = np.zeros(n)
+        
+        fast_alpha = 2.0 / (fast_period + 1)
+        slow_alpha = 2.0 / (slow_period + 1)
+        
+        fast_ema[0] = vf[0]
+        slow_ema[0] = vf[0]
+        
+        for i in range(1, n):
+            fast_ema[i] = fast_alpha * vf[i] + (1 - fast_alpha) * fast_ema[i-1]
+            slow_ema[i] = slow_alpha * vf[i] + (1 - slow_alpha) * slow_ema[i-1]
+        
+        # Calculate KVO
+        result = fast_ema - slow_ema
+        
+        return result
+    
+    def calculate(self, high: Union[np.ndarray, pd.Series, list],
+                 low: Union[np.ndarray, pd.Series, list],
+                 close: Union[np.ndarray, pd.Series, list],
+                 volume: Union[np.ndarray, pd.Series, list],
+                 fast_period: int = 34, slow_period: int = 55) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Klinger Volume Oscillator
+        
+        Parameters:
+        -----------
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        volume : Union[np.ndarray, pd.Series, list]
+            Volume data
+        fast_period : int, default=34
+            Fast EMA period
+        slow_period : int, default=55
+            Slow EMA period
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            KVO values in the same format as input
+        """
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        volume_data, _, _ = self.validate_input(volume)
+        
+        high_data, low_data, close_data, volume_data = self.align_arrays(high_data, low_data, close_data, volume_data)
+        
+        result = self._calculate_kvo(high_data, low_data, close_data, volume_data, fast_period, slow_period)
+        return self.format_output(result, input_type, index)
+
+
+class PriceVolumeTrend(BaseIndicator):
+    """
+    Price Volume Trend (PVT)
+    
+    PVT combines price and volume to show the cumulative volume based on 
+    price changes.
+    
+    Formula: PVT = Previous PVT + (Volume × (Close - Previous Close) / Previous Close)
+    """
+    
+    def __init__(self):
+        super().__init__("PVT")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_pvt(close: np.ndarray, volume: np.ndarray) -> np.ndarray:
+        """Numba optimized PVT calculation"""
+        n = len(close)
+        pvt = np.zeros(n)
+        
+        for i in range(1, n):
+            if close[i-1] != 0:
+                price_change_ratio = (close[i] - close[i-1]) / close[i-1]
+                pvt[i] = pvt[i-1] + (volume[i] * price_change_ratio)
+            else:
+                pvt[i] = pvt[i-1]
+        
+        return pvt
+    
+    def calculate(self, close: Union[np.ndarray, pd.Series, list],
+                 volume: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Price Volume Trend
+        
+        Parameters:
+        -----------
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        volume : Union[np.ndarray, pd.Series, list]
+            Volume data
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            PVT values in the same format as input
+        """
+        close_data, input_type, index = self.validate_input(close)
+        volume_data, _, _ = self.validate_input(volume)
+        
+        close_data, volume_data = self.align_arrays(close_data, volume_data)
+        
+        result = self._calculate_pvt(close_data, volume_data)
+        return self.format_output(result, input_type, index)

@@ -174,6 +174,66 @@ tenkan, kijun, span_a, span_b, chikou = ta.ichimoku(high, low, close)
 tenkan, kijun, span_a, span_b, chikou = ta.ichimoku(high, low, close, 7, 22, 44, 22)
 ```
 
+### Triangular Moving Average (TRIMA)
+```python
+ta.trima(data, period)
+```
+- 🔴 **data**: Price data
+- 🔴 **period**: Number of periods for moving average
+
+### McGinley Dynamic
+```python
+ta.mcginley_dynamic(data, period=14)
+```
+- 🔴 **data**: Price data
+- 🟢 **period**: Number of periods (default: 14)
+
+### VIDYA (Variable Index Dynamic Average)
+```python
+ta.vidya(data, period=14, alpha=0.2)
+```
+- 🔴 **data**: Price data
+- 🟢 **period**: CMO calculation period (default: 14)
+- 🟢 **alpha**: EMA smoothing factor (default: 0.2)
+
+### Alligator (Bill Williams)
+```python
+ta.alligator(high, low, jaw_period=13, jaw_shift=8, teeth_period=8, teeth_shift=5, lips_period=5, lips_shift=3)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🟢 **jaw_period**: Jaw (blue line) period (default: 13)
+- 🟢 **jaw_shift**: Jaw shift forward (default: 8)
+- 🟢 **teeth_period**: Teeth (red line) period (default: 8)
+- 🟢 **teeth_shift**: Teeth shift forward (default: 5)
+- 🟢 **lips_period**: Lips (green line) period (default: 5)
+- 🟢 **lips_shift**: Lips shift forward (default: 3)
+
+**Returns:** Tuple of (jaw, teeth, lips)
+
+### Moving Average Envelopes
+```python
+ta.ma_envelopes(data, period=20, percentage=2.5, ma_type='SMA')
+```
+- 🔴 **data**: Price data
+- 🟢 **period**: Moving average period (default: 20)
+- 🟢 **percentage**: Envelope percentage (default: 2.5)
+- 🟢 **ma_type**: MA type 'SMA' or 'EMA' (default: 'SMA')
+
+**Returns:** Tuple of (upper_envelope, ma_line, lower_envelope)
+
+### Chande Kroll Stop
+```python
+ta.ckstop(high, low, close, period=10, atr_multiplier=1.0)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+- 🟢 **period**: ATR period (default: 10)
+- 🟢 **atr_multiplier**: ATR multiplier (default: 1.0)
+
+**Returns:** Tuple of (Long Stop, Short Stop)
+
 ---
 
 ## 💫 Momentum Indicators
@@ -251,6 +311,153 @@ ta.williams_r(high, low, close, period=14)
 wr_default = ta.williams_r(high, low, close)           # Uses period=14
 wr_custom = ta.williams_r(high, low, close, 21)       # Custom period
 ```
+
+### Balance of Power (BOP)
+```python
+ta.bop(open, high, low, close)
+```
+- 🔴 **open**: Open prices
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+
+### Elder Ray Index
+```python
+ta.elderray(high, low, close, period=13)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+- 🟢 **period**: EMA period (default: 13)
+
+**Returns:** Tuple of (Bull Power, Bear Power)
+
+### Fisher Transform
+```python
+ta.fisher(data, period=10)
+```
+- 🔴 **data**: Price data
+- 🟢 **period**: Smoothing period (default: 10)
+
+**Returns:** Tuple of (Fisher Transform, Trigger line)
+
+### Connors RSI
+```python
+ta.crsi(data, rsi_period=3, streak_period=2, roc_period=100)
+```
+- 🔴 **data**: Close prices
+- 🟢 **rsi_period**: RSI period (default: 3)
+- 🟢 **streak_period**: Streak period (default: 2)
+- 🟢 **roc_period**: ROC period (default: 100)
+
+### Choppiness Index (CHOP)
+```python
+ta.chop(high, low, close, period=14)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+- 🟢 **period**: Number of periods (default: 14)
+
+### Know Sure Thing (KST)
+```python
+ta.kst(close, roc1=10, roc2=15, roc3=20, roc4=30, sma1=10, sma2=10, sma3=10, sma4=15, signal_period=9)
+```
+- 🔴 **close**: Close prices
+- 🟢 **roc1**: First ROC period (default: 10)
+- 🟢 **roc2**: Second ROC period (default: 15)
+- 🟢 **roc3**: Third ROC period (default: 20)
+- 🟢 **roc4**: Fourth ROC period (default: 30)
+- 🟢 **sma1**: First SMA period (default: 10)
+- 🟢 **sma2**: Second SMA period (default: 10)
+- 🟢 **sma3**: Third SMA period (default: 10)
+- 🟢 **sma4**: Fourth SMA period (default: 15)
+- 🟢 **signal_period**: Signal line SMA period (default: 9)
+
+**Returns:** Tuple of (KST line, Signal line)
+
+### True Strength Index (TSI)
+```python
+ta.tsi(close, long_period=25, short_period=13, signal_period=13)
+```
+- 🔴 **close**: Close prices
+- 🟢 **long_period**: First smoothing period (default: 25)
+- 🟢 **short_period**: Second smoothing period (default: 13)
+- 🟢 **signal_period**: Signal line EMA period (default: 13)
+
+**Returns:** Tuple of (TSI line, Signal line)
+
+### Vortex Indicator (VI)
+```python
+ta.vi(high, low, close, period=14)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+- 🟢 **period**: Number of periods (default: 14)
+
+**Returns:** Tuple of (VI+, VI-)
+
+### Schaff Trend Cycle (STC)
+```python
+ta.stc(close, fast_period=23, slow_period=50, cycle_period=10, d1_period=3, d2_period=3)
+```
+- 🔴 **close**: Close prices
+- 🟢 **fast_period**: Fast EMA period (default: 23)
+- 🟢 **slow_period**: Slow EMA period (default: 50)
+- 🟢 **cycle_period**: Stochastic period (default: 10)
+- 🟢 **d1_period**: First %K smoothing (default: 3)
+- 🟢 **d2_period**: Second %K smoothing (default: 3)
+
+### Gator Oscillator
+```python
+ta.gator_oscillator(high, low, jaw_period=13, jaw_shift=8, teeth_period=8, teeth_shift=5, lips_period=5, lips_shift=3)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🟢 **jaw_period**: Jaw (blue line) period (default: 13)
+- 🟢 **jaw_shift**: Jaw shift forward (default: 8)
+- 🟢 **teeth_period**: Teeth (red line) period (default: 8)
+- 🟢 **teeth_shift**: Teeth shift forward (default: 5)
+- 🟢 **lips_period**: Lips (green line) period (default: 5)
+- 🟢 **lips_shift**: Lips shift forward (default: 3)
+
+**Returns:** Tuple of (Upper Gator, Lower Gator)
+
+### Stochastic RSI
+```python
+ta.stochrsi(data, rsi_period=14, stoch_period=14, k_period=3, d_period=3)
+```
+- 🔴 **data**: Close prices
+- 🟢 **rsi_period**: RSI calculation period (default: 14)
+- 🟢 **stoch_period**: Stochastic period (default: 14)
+- 🟢 **k_period**: %K smoothing period (default: 3)
+- 🟢 **d_period**: %D smoothing period (default: 3)
+
+**Returns:** Tuple of (StochRSI %K, StochRSI %D)
+
+### Relative Vigor Index (RVI)
+```python
+ta.rvi(open, high, low, close, period=10)
+```
+- 🔴 **open**: Open prices
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+- 🟢 **period**: Number of periods (default: 10)
+
+**Returns:** Tuple of (RVI line, Signal line)
+
+### Chaikin Oscillator
+```python
+ta.cho(high, low, close, volume, fast_period=3, slow_period=10)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+- 🔴 **volume**: Volume data
+- 🟢 **fast_period**: Fast EMA period (default: 3)
+- 🟢 **slow_period**: Slow EMA period (default: 10)
 
 ---
 
@@ -377,6 +584,62 @@ ta.mass_index(high, low, fast_period=9, slow_period=25)
 - 🟢 **fast_period**: Fast EMA period (default: **9**)
 - 🟢 **slow_period**: Sum period (default: **25**)
 
+### Bollinger Bands %B
+```python
+ta.bbands_percent_b(close, period=20, std_dev=2)
+```
+- 🔴 **close**: Close prices
+- 🟢 **period**: MA period (default: 20)
+- 🟢 **std_dev**: Standard deviations (default: 2)
+
+### Bollinger Bandwidth
+```python
+ta.bbands_bandwidth(close, period=20, std_dev=2)
+```
+- 🔴 **close**: Close prices
+- 🟢 **period**: MA period (default: 20)
+- 🟢 **std_dev**: Standard deviations (default: 2)
+
+### Chandelier Exit
+```python
+ta.chandelier_exit(high, low, close, period=22, multiplier=3.0)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+- 🟢 **period**: ATR period (default: 22)
+- 🟢 **multiplier**: ATR multiplier (default: 3.0)
+
+**Returns:** Tuple of (Chandelier Exit Long, Chandelier Exit Short)
+
+### Historical Volatility (HV)
+```python
+ta.hv(close, period=20, annualize=True)
+```
+- 🔴 **close**: Close prices
+- 🟢 **period**: Number of periods (default: 20)
+- 🟢 **annualize**: Annualize result (default: True)
+
+### Ulcer Index
+```python
+ta.ulcer_index(close, period=14)
+```
+- 🔴 **close**: Close prices
+- 🟢 **period**: Number of periods (default: 14)
+
+### STARC Bands
+```python
+ta.starc_bands(high, low, close, ma_period=20, atr_period=15, multiplier=2.0)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+- 🟢 **ma_period**: Moving average period (default: 20)
+- 🟢 **atr_period**: ATR period (default: 15)
+- 🟢 **multiplier**: ATR multiplier (default: 2.0)
+
+**Returns:** Tuple of (Upper STARC, Middle STARC, Lower STARC)
+
 ---
 
 ## 📉 Volume Indicators
@@ -483,6 +746,24 @@ ta.vroc(volume, period=25)
 ```
 - 🔴 **volume**: Volume data
 - 🟢 **period**: Number of periods (default: **25**)
+
+### Klinger Volume Oscillator (KVO)
+```python
+ta.kvo(high, low, close, volume, fast_period=34, slow_period=55)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+- 🔴 **volume**: Volume data
+- 🟢 **fast_period**: Fast EMA period (default: 34)
+- 🟢 **slow_period**: Slow EMA period (default: 55)
+
+### Price Volume Trend (PVT)
+```python
+ta.pvt(close, volume)
+```
+- 🔴 **close**: Close prices
+- 🔴 **volume**: Volume data
 
 ---
 
@@ -694,6 +975,35 @@ ta.psar(high, low, acceleration=0.02, maximum=0.2)
 ta.hilbert_trendline(data)
 ```
 - 🔴 **data**: Price data
+
+### Zig Zag
+```python
+ta.zigzag(high, low, deviation=5.0)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🟢 **deviation**: Minimum percentage change (default: 5.0)
+
+### Williams Fractals
+```python
+ta.williams_fractals(high, low, period=2)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🟢 **period**: Number of periods (default: 2)
+
+**Returns:** Tuple of (Fractal High, Fractal Low)
+
+### Random Walk Index (RWI)
+```python
+ta.random_walk_index(high, low, close, period=14)
+```
+- 🔴 **high**: High prices
+- 🔴 **low**: Low prices
+- 🔴 **close**: Close prices
+- 🟢 **period**: Number of periods (default: 14)
+
+**Returns:** Tuple of (RWI High, RWI Low)
 
 ---
 

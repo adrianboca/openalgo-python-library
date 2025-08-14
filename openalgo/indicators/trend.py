@@ -1039,3 +1039,481 @@ class FRAMA(BaseIndicator):
         
         result = self._calculate_frama(validated_data, period)
         return self.format_output(result, input_type, index)
+
+
+class ChandeKrollStop(BaseIndicator):
+    """
+    Chande Kroll Stop
+    
+    The Chande Kroll Stop is a trailing stop-loss technique that combines 
+    ATR-based calculations with highest highs and lowest lows.
+    
+    Formula:
+    Long Stop = Highest(High, period) - ATR_multiplier * ATR(period)
+    Short Stop = Lowest(Low, period) + ATR_multiplier * ATR(period)
+    """
+    
+    def __init__(self):
+        super().__init__("Chande Kroll Stop")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
+        """Calculate ATR"""
+        n = len(close)
+        tr = np.empty(n)
+        
+        # Calculate True Range
+        tr[0] = high[0] - low[0]
+        for i in range(1, n):
+            tr[i] = max(high[i] - low[i],
+                       abs(high[i] - close[i-1]),
+                       abs(low[i] - close[i-1]))
+        
+        # Calculate ATR using exponential moving average
+        atr = np.empty(n)
+        atr[0] = tr[0]
+        alpha = 1.0 / period
+        
+        for i in range(1, n):
+            atr[i] = alpha * tr[i] + (1 - alpha) * atr[i-1]
+        
+        return atr
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_chande_kroll_stop(high: np.ndarray, low: np.ndarray, close: np.ndarray,
+                                   period: int, atr_multiplier: float) -> Tuple[np.ndarray, np.ndarray]:
+        """Numba optimized Chande Kroll Stop calculation"""
+        n = len(close)
+        long_stop = np.full(n, np.nan)
+        short_stop = np.full(n, np.nan)
+        
+        # Calculate ATR
+        atr = ChandeKrollStop._calculate_atr(high, low, close, period)
+        
+        for i in range(period - 1, n):
+            # Calculate highest high and lowest low over the period
+            highest_high = np.max(high[i - period + 1:i + 1])
+            lowest_low = np.min(low[i - period + 1:i + 1])
+            
+            # Calculate stops
+            long_stop[i] = highest_high - atr_multiplier * atr[i]
+            short_stop[i] = lowest_low + atr_multiplier * atr[i]
+        
+        return long_stop, short_stop
+    
+    def calculate(self, high: Union[np.ndarray, pd.Series, list],
+                 low: Union[np.ndarray, pd.Series, list],
+                 close: Union[np.ndarray, pd.Series, list],
+                 period: int = 10, atr_multiplier: float = 1.0) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """
+        Calculate Chande Kroll Stop
+        
+        Parameters:
+        -----------
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        period : int, default=10
+            Period for highest/lowest and ATR calculation
+        atr_multiplier : float, default=1.0
+            Multiplier for ATR in stop calculation
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (long_stop, short_stop) in the same format as input
+        """
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        self.validate_period(period, len(close_data))
+        
+        long_stop, short_stop = self._calculate_chande_kroll_stop(high_data, low_data, close_data, period, atr_multiplier)
+        
+        results = (long_stop, short_stop)
+        return self.format_multiple_outputs(results, input_type, index)
+
+
+class TRIMA(BaseIndicator):
+    """
+    Triangular Moving Average
+    
+    TRIMA is a double-smoothed moving average that applies SMA twice.
+    
+    Formula: TRIMA = SMA(SMA(Close, n), n)
+    Where n = (period + 1) / 2
+    """
+    
+    def __init__(self):
+        super().__init__("TRIMA")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_trima(data: np.ndarray, period: int) -> np.ndarray:
+        """Numba optimized TRIMA calculation"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        # First, calculate n for SMA
+        n1 = (period + 1) // 2
+        n2 = period - n1 + 1
+        
+        # First SMA
+        first_sma = np.full(n, np.nan)
+        for i in range(n1 - 1, n):
+            first_sma[i] = np.mean(data[i - n1 + 1:i + 1])
+        
+        # Second SMA on first SMA
+        for i in range(n1 + n2 - 2, n):
+            if not np.isnan(first_sma[i]):
+                window_start = max(0, i - n2 + 1)
+                window = first_sma[window_start:i + 1]
+                valid_values = window[~np.isnan(window)]
+                if len(valid_values) >= n2:
+                    result[i] = np.mean(valid_values[-n2:])
+        
+        return result
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Triangular Moving Average
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically closing prices)
+        period : int
+            Number of periods for the moving average
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            TRIMA values in the same format as input
+        """
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        result = self._calculate_trima(validated_data, period)
+        return self.format_output(result, input_type, index)
+
+
+class McGinleyDynamic(BaseIndicator):
+    """
+    McGinley Dynamic
+    
+    A moving average that adjusts automatically for market speed changes.
+    
+    Formula: MD[i] = MD[i-1] + (Close[i] - MD[i-1]) / (N * (Close[i]/MD[i-1])^4)
+    """
+    
+    def __init__(self):
+        super().__init__("McGinley Dynamic")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_mcginley(data: np.ndarray, period: int) -> np.ndarray:
+        """Numba optimized McGinley Dynamic calculation"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        if n < period:
+            return result
+        
+        # Initialize with SMA
+        result[period - 1] = np.mean(data[:period])
+        
+        for i in range(period, n):
+            if result[i - 1] != 0:
+                ratio = data[i] / result[i - 1]
+                factor = period * (ratio ** 4)
+                result[i] = result[i - 1] + (data[i] - result[i - 1]) / factor
+            else:
+                result[i] = data[i]
+        
+        return result
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate McGinley Dynamic
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically closing prices)
+        period : int
+            Number of periods for the calculation
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            McGinley Dynamic values in the same format as input
+        """
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        result = self._calculate_mcginley(validated_data, period)
+        return self.format_output(result, input_type, index)
+
+
+class VIDYA(BaseIndicator):
+    """
+    Variable Index Dynamic Average (VIDYA)
+    
+    VIDYA uses the Chande Momentum Oscillator (CMO) to adjust the smoothing constant of an EMA.
+    
+    Formula: VIDYA[i] = VIDYA[i-1] + alpha * |CMO[i]| / 100 * (Close[i] - VIDYA[i-1])
+    """
+    
+    def __init__(self):
+        super().__init__("VIDYA")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_cmo(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate Chande Momentum Oscillator"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        # Calculate price changes
+        changes = np.diff(data)
+        
+        for i in range(period, n):
+            sum_up = 0.0
+            sum_down = 0.0
+            
+            for j in range(period):
+                change = changes[i - period + j]
+                if change > 0:
+                    sum_up += change
+                elif change < 0:
+                    sum_down += abs(change)
+            
+            total_movement = sum_up + sum_down
+            if total_movement > 0:
+                result[i] = 100 * (sum_up - sum_down) / total_movement
+            else:
+                result[i] = 0.0
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_vidya(data: np.ndarray, period: int, alpha: float) -> np.ndarray:
+        """Numba optimized VIDYA calculation"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        # Calculate CMO
+        cmo = VIDYA._calculate_cmo(data, period)
+        
+        # Initialize with first valid data point
+        result[period] = data[period]
+        
+        for i in range(period + 1, n):
+            if not np.isnan(cmo[i]):
+                smoothing_constant = alpha * abs(cmo[i]) / 100
+                result[i] = result[i - 1] + smoothing_constant * (data[i] - result[i - 1])
+            else:
+                result[i] = result[i - 1]
+        
+        return result
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], 
+                 period: int = 14, alpha: float = 0.2) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Variable Index Dynamic Average
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically closing prices)
+        period : int, default=14
+            Period for CMO calculation
+        alpha : float, default=0.2
+            Alpha factor for smoothing
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            VIDYA values in the same format as input
+        """
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period + 1, len(validated_data))
+        result = self._calculate_vidya(validated_data, period, alpha)
+        return self.format_output(result, input_type, index)
+
+
+class Alligator(BaseIndicator):
+    """
+    Alligator (Bill Williams)
+    
+    The Alligator consists of three smoothed moving averages:
+    - Jaw (blue line): 13-period SMMA, shifted 8 bars forward
+    - Teeth (red line): 8-period SMMA, shifted 5 bars forward  
+    - Lips (green line): 5-period SMMA, shifted 3 bars forward
+    """
+    
+    def __init__(self):
+        super().__init__("Alligator")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_smma(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate Smoothed Moving Average (SMMA)"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        if n < period:
+            return result
+        
+        # Initialize with SMA
+        result[period - 1] = np.mean(data[:period])
+        
+        # Calculate SMMA
+        for i in range(period, n):
+            result[i] = (result[i - 1] * (period - 1) + data[i]) / period
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _shift_series(data: np.ndarray, shift: int) -> np.ndarray:
+        """Shift series forward by specified periods"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(shift, n):
+            result[i] = data[i - shift]
+        
+        return result
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list],
+                 jaw_period: int = 13, jaw_shift: int = 8,
+                 teeth_period: int = 8, teeth_shift: int = 5,
+                 lips_period: int = 5, lips_shift: int = 3) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
+        """
+        Calculate Alligator
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically (high + low) / 2)
+        jaw_period : int, default=13
+            Period for Jaw line
+        jaw_shift : int, default=8
+            Forward shift for Jaw line
+        teeth_period : int, default=8
+            Period for Teeth line
+        teeth_shift : int, default=5
+            Forward shift for Teeth line
+        lips_period : int, default=5
+            Period for Lips line
+        lips_shift : int, default=3
+            Forward shift for Lips line
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]
+            (jaw, teeth, lips) in the same format as input
+        """
+        validated_data, input_type, index = self.validate_input(data)
+        
+        # Calculate SMMA for each line
+        jaw_smma = self._calculate_smma(validated_data, jaw_period)
+        teeth_smma = self._calculate_smma(validated_data, teeth_period)
+        lips_smma = self._calculate_smma(validated_data, lips_period)
+        
+        # Apply shifts
+        jaw = self._shift_series(jaw_smma, jaw_shift)
+        teeth = self._shift_series(teeth_smma, teeth_shift)
+        lips = self._shift_series(lips_smma, lips_shift)
+        
+        results = (jaw, teeth, lips)
+        return self.format_multiple_outputs(results, input_type, index)
+
+
+class MovingAverageEnvelopes(BaseIndicator):
+    """
+    Moving Average Envelopes
+    
+    Upper and lower envelopes around a moving average, calculated as percentage bands.
+    
+    Formula: 
+    Upper = MA * (1 + percentage/100)
+    Lower = MA * (1 - percentage/100)
+    """
+    
+    def __init__(self):
+        super().__init__("MA Envelopes")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_sma(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate SMA"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            result[i] = np.mean(data[i - period + 1:i + 1])
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_ema(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate EMA"""
+        n = len(data)
+        result = np.empty(n)
+        alpha = 2.0 / (period + 1)
+        
+        result[0] = data[0]
+        for i in range(1, n):
+            result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
+        
+        return result
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list],
+                 period: int = 20, percentage: float = 2.5,
+                 ma_type: str = "SMA") -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
+        """
+        Calculate Moving Average Envelopes
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically closing prices)
+        period : int, default=20
+            Period for moving average calculation
+        percentage : float, default=2.5
+            Percentage for envelope calculation
+        ma_type : str, default="SMA"
+            Type of moving average ("SMA" or "EMA")
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]
+            (upper_envelope, middle_line, lower_envelope) in the same format as input
+        """
+        validated_data, input_type, index = self.validate_input(data)
+        self.validate_period(period, len(validated_data))
+        
+        # Calculate moving average
+        if ma_type.upper() == "SMA":
+            ma = self._calculate_sma(validated_data, period)
+        elif ma_type.upper() == "EMA":
+            ma = self._calculate_ema(validated_data, period)
+        else:
+            raise ValueError(f"Unsupported MA type: {ma_type}")
+        
+        # Calculate envelopes
+        multiplier = percentage / 100
+        upper_envelope = ma * (1 + multiplier)
+        lower_envelope = ma * (1 - multiplier)
+        
+        results = (upper_envelope, ma, lower_envelope)
+        return self.format_multiple_outputs(results, input_type, index)

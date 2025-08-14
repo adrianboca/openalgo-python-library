@@ -12,14 +12,22 @@ from typing import Union, Tuple, Optional
 
 # Import all indicator classes
 from .trend import (SMA, EMA, WMA, DEMA, TEMA, Supertrend, Ichimoku, HMA, VWMA, 
-                   ALMA, KAMA, ZLEMA, T3, FRAMA)
-from .momentum import RSI, MACD, Stochastic, CCI, WilliamsR
+                   ALMA, KAMA, ZLEMA, T3, FRAMA, ChandeKrollStop, TRIMA, 
+                   McGinleyDynamic, VIDYA, Alligator, MovingAverageEnvelopes)
+from .momentum import (RSI, MACD, Stochastic, CCI, WilliamsR, BalanceOfPower, 
+                      ElderRayIndex, FisherTransform, ConnorsRSI)
 from .volatility import (ATR, BollingerBands, KeltnerChannel, DonchianChannel,
-                        ChaikinVolatility, NATR, RVI, ULTOSC, STDDEV, TRANGE, MASS)
-from .volume import (OBV, VWAP, MFI, ADL, CMF, EMV, FI, NVI, PVI, VO, VROC)
-from .oscillators import (ROC, CMO, TRIX, UO, AO, AC, PPO, PO, DPO, AROONOSC)
+                        ChaikinVolatility, NATR, RVI, ULTOSC, STDDEV, TRANGE, MASS,
+                        BollingerBandsPercentB, BollingerBandwidth, ChandelierExit,
+                        HistoricalVolatility, UlcerIndex, STARCBands)
+from .volume import (OBV, VWAP, MFI, ADL, CMF, EMV, FI, NVI, PVI, VO, VROC,
+                    KlingerVolumeOscillator, PriceVolumeTrend)
+from .oscillators import (ROC, CMO, TRIX, UO, AO, AC, PPO, PO, DPO, AROONOSC,
+                         StochRSI, RVI, ChaikinOscillator, CHOP, KST, TSI, VI, 
+                         GatorOscillator, STC)
 from .statistics import (LINEARREG, LINEARREG_SLOPE, CORREL, BETA, VAR, TSF, MEDIAN, MODE)
-from .hybrid import (ADX, Aroon, PivotPoints, SAR, DMI, PSAR, HT_TRENDLINE)
+from .hybrid import (ADX, Aroon, PivotPoints, SAR, DMI, PSAR, HT_TRENDLINE,
+                    ZigZag, WilliamsFractals, RandomWalkIndex)
 from .utils import (crossover, crossunder, highest, lowest, change, roc, 
                    sma as utils_sma, ema as utils_ema, stdev, validate_input)
 
@@ -67,6 +75,7 @@ class TechnicalAnalysis:
         self._frama = FRAMA()
         self._supertrend = Supertrend()
         self._ichimoku = Ichimoku()
+        self._chande_kroll_stop = ChandeKrollStop()
         
         # Momentum indicators
         self._rsi = RSI()
@@ -74,6 +83,10 @@ class TechnicalAnalysis:
         self._stochastic = Stochastic()
         self._cci = CCI()
         self._williams_r = WilliamsR()
+        self._balance_of_power = BalanceOfPower()
+        self._elder_ray = ElderRayIndex()
+        self._fisher_transform = FisherTransform()
+        self._connors_rsi = ConnorsRSI()
         
         # Volatility indicators
         self._atr = ATR()
@@ -100,6 +113,8 @@ class TechnicalAnalysis:
         self._pvi = PVI()
         self._vo = VO()
         self._vroc = VROC()
+        self._klinger_vo = KlingerVolumeOscillator()
+        self._pvt = PriceVolumeTrend()
         
         # Oscillators
         self._roc = ROC()
@@ -112,6 +127,9 @@ class TechnicalAnalysis:
         self._po = PO()
         self._dpo = DPO()
         self._aroonosc = AROONOSC()
+        self._stoch_rsi = StochRSI()
+        self._rvi_osc = RVI()
+        self._chaikin_osc = ChaikinOscillator()
         
         # Statistical indicators
         self._linearreg = LINEARREG()
@@ -839,6 +857,79 @@ class TechnicalAnalysis:
         """Hilbert Transform Trendline"""
         return self._ht_trendline.calculate(data)
     
+    def ckstop(self, high: Union[np.ndarray, pd.Series, list],
+              low: Union[np.ndarray, pd.Series, list],
+              close: Union[np.ndarray, pd.Series, list],
+              period: int = 10, atr_multiplier: float = 1.0) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """Chande Kroll Stop"""
+        return self._chande_kroll_stop.calculate(high, low, close, period, atr_multiplier)
+    
+    # =================== NEW MOMENTUM INDICATORS ===================
+    
+    def bop(self, open_prices: Union[np.ndarray, pd.Series, list],
+           high: Union[np.ndarray, pd.Series, list],
+           low: Union[np.ndarray, pd.Series, list],
+           close: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
+        """Balance of Power"""
+        return self._balance_of_power.calculate(open_prices, high, low, close)
+    
+    def elderray(self, high: Union[np.ndarray, pd.Series, list],
+                low: Union[np.ndarray, pd.Series, list],
+                close: Union[np.ndarray, pd.Series, list],
+                period: int = 13) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """Elder Ray Index (Bull/Bear Power)"""
+        return self._elder_ray.calculate(high, low, close, period)
+    
+    def fisher(self, data: Union[np.ndarray, pd.Series, list],
+              period: int = 10) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """Fisher Transform"""
+        return self._fisher_transform.calculate(data, period)
+    
+    def crsi(self, data: Union[np.ndarray, pd.Series, list],
+            rsi_period: int = 3, streak_period: int = 2, 
+            roc_period: int = 100) -> Union[np.ndarray, pd.Series]:
+        """Connors RSI"""
+        return self._connors_rsi.calculate(data, rsi_period, streak_period, roc_period)
+    
+    # =================== NEW VOLUME INDICATORS ===================
+    
+    def kvo(self, high: Union[np.ndarray, pd.Series, list],
+           low: Union[np.ndarray, pd.Series, list],
+           close: Union[np.ndarray, pd.Series, list],
+           volume: Union[np.ndarray, pd.Series, list],
+           fast_period: int = 34, slow_period: int = 55) -> Union[np.ndarray, pd.Series]:
+        """Klinger Volume Oscillator"""
+        return self._klinger_vo.calculate(high, low, close, volume, fast_period, slow_period)
+    
+    def pvt(self, close: Union[np.ndarray, pd.Series, list],
+           volume: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
+        """Price Volume Trend"""
+        return self._pvt.calculate(close, volume)
+    
+    # =================== NEW OSCILLATORS ===================
+    
+    def stochrsi(self, data: Union[np.ndarray, pd.Series, list], 
+                rsi_period: int = 14, stoch_period: int = 14,
+                k_period: int = 3, d_period: int = 3) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """Stochastic RSI"""
+        return self._stoch_rsi.calculate(data, rsi_period, stoch_period, k_period, d_period)
+    
+    def rvi(self, open_prices: Union[np.ndarray, pd.Series, list],
+           high: Union[np.ndarray, pd.Series, list],
+           low: Union[np.ndarray, pd.Series, list],
+           close: Union[np.ndarray, pd.Series, list],
+           period: int = 10) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """Relative Vigor Index"""
+        return self._rvi_osc.calculate(open_prices, high, low, close, period)
+    
+    def cho(self, high: Union[np.ndarray, pd.Series, list],
+           low: Union[np.ndarray, pd.Series, list],
+           close: Union[np.ndarray, pd.Series, list],
+           volume: Union[np.ndarray, pd.Series, list],
+           fast_period: int = 3, slow_period: int = 10) -> Union[np.ndarray, pd.Series]:
+        """Chaikin Oscillator"""
+        return self._chaikin_osc.calculate(high, low, close, volume, fast_period, slow_period)
+    
     # =================== UTILITY FUNCTIONS ===================
     
     def crossover(self, series1: Union[np.ndarray, pd.Series, list], 
@@ -987,16 +1078,19 @@ __all__ = [
     'ta', 'TechnicalAnalysis',
     # Trend indicators
     'SMA', 'EMA', 'WMA', 'DEMA', 'TEMA', 'HMA', 'VWMA', 'ALMA', 'KAMA', 'ZLEMA', 'T3', 'FRAMA',
-    'Supertrend', 'Ichimoku',
+    'Supertrend', 'Ichimoku', 'ChandeKrollStop',
     # Momentum indicators  
-    'RSI', 'MACD', 'Stochastic', 'CCI', 'WilliamsR',
+    'RSI', 'MACD', 'Stochastic', 'CCI', 'WilliamsR', 'BalanceOfPower', 'ElderRayIndex', 
+    'FisherTransform', 'ConnorsRSI',
     # Volatility indicators
     'ATR', 'BollingerBands', 'KeltnerChannel', 'DonchianChannel', 'ChaikinVolatility', 'NATR', 
     'RVI', 'ULTOSC', 'STDDEV', 'TRANGE', 'MASS',
     # Volume indicators
     'OBV', 'VWAP', 'MFI', 'ADL', 'CMF', 'EMV', 'FI', 'NVI', 'PVI', 'VO', 'VROC',
+    'KlingerVolumeOscillator', 'PriceVolumeTrend',
     # Oscillators
     'ROC', 'CMO', 'TRIX', 'UO', 'AO', 'AC', 'PPO', 'PO', 'DPO', 'AROONOSC',
+    'StochRSI', 'RVI', 'ChaikinOscillator',
     # Statistical indicators
     'LINEARREG', 'LINEARREG_SLOPE', 'CORREL', 'BETA', 'VAR', 'TSF', 'MEDIAN', 'MODE',
     # Hybrid indicators
