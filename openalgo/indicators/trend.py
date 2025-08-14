@@ -208,13 +208,28 @@ class DEMA(BaseIndicator):
         self.validate_period(period, len(validated_data))
         
         # Calculate first EMA
-        ema1 = self._ema.calculate(validated_data, period)
+        ema1_data = self._ema._calculate_ema(validated_data, period)
         
-        # Calculate EMA of EMA
-        ema2 = self._ema.calculate(ema1, period)
+        # For second EMA, skip NaN values from first EMA
+        # Find first valid index in ema1
+        first_valid = period - 1
+        if first_valid >= len(ema1_data):
+            result = np.full_like(validated_data, np.nan)
+            return self.format_output(result, input_type, index)
+        
+        # Extract valid portion for second EMA calculation
+        valid_ema1 = ema1_data[first_valid:]
+        ema2_partial = self._ema._calculate_ema(valid_ema1, period)
+        
+        # Reconstruct full ema2 array
+        ema2_data = np.full_like(validated_data, np.nan)
+        second_valid_start = first_valid + period - 1
+        if second_valid_start < len(ema2_data):
+            valid_length = min(len(ema2_partial[period-1:]), len(ema2_data) - second_valid_start)
+            ema2_data[second_valid_start:second_valid_start + valid_length] = ema2_partial[period-1:period-1 + valid_length]
         
         # DEMA = 2 * EMA - EMA(EMA)
-        result = 2 * ema1 - ema2
+        result = 2 * ema1_data - ema2_data
         return self.format_output(result, input_type, index)
 
 
@@ -250,13 +265,40 @@ class TEMA(BaseIndicator):
         validated_data, input_type, index = self.validate_input(data)
         self.validate_period(period, len(validated_data))
         
-        # Calculate EMAs
-        ema1 = self._ema.calculate(validated_data, period)
-        ema2 = self._ema.calculate(ema1, period)
-        ema3 = self._ema.calculate(ema2, period)
+        # Calculate first EMA
+        ema1_data = self._ema._calculate_ema(validated_data, period)
+        
+        # Calculate second EMA from valid portion of first EMA
+        first_valid = period - 1
+        if first_valid >= len(ema1_data):
+            result = np.full_like(validated_data, np.nan)
+            return self.format_output(result, input_type, index)
+        
+        valid_ema1 = ema1_data[first_valid:]
+        ema2_partial = self._ema._calculate_ema(valid_ema1, period)
+        
+        # Reconstruct full ema2 array
+        ema2_data = np.full_like(validated_data, np.nan)
+        second_valid_start = first_valid + period - 1
+        if second_valid_start < len(ema2_data):
+            valid_length = min(len(ema2_partial[period-1:]), len(ema2_data) - second_valid_start)
+            ema2_data[second_valid_start:second_valid_start + valid_length] = ema2_partial[period-1:period-1 + valid_length]
+        
+        # Calculate third EMA from valid portion of second EMA
+        ema3_data = np.full_like(validated_data, np.nan)
+        if second_valid_start < len(ema2_data):
+            valid_ema2 = ema2_data[second_valid_start:]
+            # Remove NaN values
+            valid_ema2_clean = valid_ema2[~np.isnan(valid_ema2)]
+            if len(valid_ema2_clean) >= period:
+                ema3_partial = self._ema._calculate_ema(valid_ema2_clean, period)
+                third_valid_start = second_valid_start + period - 1
+                if third_valid_start < len(ema3_data):
+                    valid_length = min(len(ema3_partial[period-1:]), len(ema3_data) - third_valid_start)
+                    ema3_data[third_valid_start:third_valid_start + valid_length] = ema3_partial[period-1:period-1 + valid_length]
         
         # TEMA = 3 * EMA - 3 * EMA(EMA) + EMA(EMA(EMA))
-        result = 3 * ema1 - 3 * ema2 + ema3
+        result = 3 * ema1_data - 3 * ema2_data + ema3_data
         return self.format_output(result, input_type, index)
 
 
@@ -312,13 +354,13 @@ class Supertrend(BaseIndicator):
     @jit(nopython=True)
     def _calculate_supertrend(high: np.ndarray, low: np.ndarray, close: np.ndarray, 
                              period: int, multiplier: float) -> Tuple[np.ndarray, np.ndarray]:
-        """Numba optimized Supertrend calculation"""
+        """Numba optimized Supertrend calculation - matches TradingView Pine Script logic"""
         n = len(close)
         
         # Calculate ATR
         atr = _calculate_atr(high, low, close, period)
         
-        # Calculate basic bands
+        # Calculate basic bands (src = hl2 in Pine Script)
         hl_avg = (high + low) / 2.0
         upper_band = hl_avg + multiplier * atr
         lower_band = hl_avg - multiplier * atr
@@ -327,47 +369,56 @@ class Supertrend(BaseIndicator):
         final_upper = np.full(n, np.nan)
         final_lower = np.full(n, np.nan)
         supertrend = np.full(n, np.nan)
-        direction = np.zeros(n)
+        direction = np.full(n, np.nan)
         
         first_valid = period - 1
         if first_valid < 0 or first_valid >= n:
             return supertrend, direction
         
-        # Seed with first valid values (where ATR is defined)
+        # Initialize first valid values
         final_upper[first_valid] = upper_band[first_valid]
         final_lower[first_valid] = lower_band[first_valid]
+        # Pine Script: if na(atr[1]) _direction := 1 (first bar is downtrend)
+        direction[first_valid] = 1.0  # downtrend (red in Pine Script)
         supertrend[first_valid] = final_upper[first_valid]
-        direction[first_valid] = 1.0
         
-        # Iterate from the next bar onward
+        # Pine Script logic for subsequent bars
         for i in range(first_valid + 1, n):
-            # Final upper band
-            if upper_band[i] < final_upper[i-1] or close[i-1] > final_upper[i-1]:
-                final_upper[i] = upper_band[i]
-            else:
-                final_upper[i] = final_upper[i-1]
-            
-            # Final lower band
+            # Final lower band: lowerBand > prevLowerBand or close[1] < prevLowerBand ? lowerBand : prevLowerBand
             if lower_band[i] > final_lower[i-1] or close[i-1] < final_lower[i-1]:
                 final_lower[i] = lower_band[i]
             else:
                 final_lower[i] = final_lower[i-1]
             
-            # Supertrend and direction
-            if direction[i-1] == 1:  # Previous uptrend
-                if close[i] <= final_lower[i]:
-                    supertrend[i] = final_lower[i]
-                    direction[i] = -1  # Change to downtrend
+            # Final upper band: upperBand < prevUpperBand or close[1] > prevUpperBand ? upperBand : prevUpperBand  
+            if upper_band[i] < final_upper[i-1] or close[i-1] > final_upper[i-1]:
+                final_upper[i] = upper_band[i]
+            else:
+                final_upper[i] = final_upper[i-1]
+            
+            # Direction logic (Pine Script)
+            # if prevSuperTrend == prevUpperBand
+            #     _direction := close > upperBand ? -1 : 1
+            # else
+            #     _direction := close < lowerBand ? 1 : -1
+            if supertrend[i-1] == final_upper[i-1]:
+                # Previous was upper band (downtrend)
+                if close[i] > final_upper[i]:
+                    direction[i] = -1.0  # Change to uptrend (green)
                 else:
-                    supertrend[i] = final_upper[i]
-                    direction[i] = 1  # Continue uptrend
-            else:  # Previous downtrend
-                if close[i] >= final_upper[i]:
-                    supertrend[i] = final_upper[i]
-                    direction[i] = 1  # Change to uptrend
+                    direction[i] = 1.0   # Continue downtrend (red)
+            else:
+                # Previous was lower band (uptrend)
+                if close[i] < final_lower[i]:
+                    direction[i] = 1.0   # Change to downtrend (red)
                 else:
-                    supertrend[i] = final_lower[i]
-                    direction[i] = -1  # Continue downtrend
+                    direction[i] = -1.0  # Continue uptrend (green)
+            
+            # Supertrend assignment: _direction == -1 ? lowerBand : upperBand
+            if direction[i] == -1.0:  # uptrend (green)
+                supertrend[i] = final_lower[i]
+            else:  # downtrend (red)
+                supertrend[i] = final_upper[i]
                 
         return supertrend, direction
     
@@ -395,7 +446,7 @@ class Supertrend(BaseIndicator):
         --------
         Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
             (supertrend values, direction values) in the same format as input
-            Direction: 1 for uptrend, -1 for downtrend
+            Direction: -1 for uptrend (green), 1 for downtrend (red) - matches TradingView
         """
         high_data, input_type, index = self.validate_input(high)
         low_data, _, _ = self.validate_input(low)
