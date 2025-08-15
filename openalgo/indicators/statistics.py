@@ -78,9 +78,13 @@ class LINREG(BaseIndicator):
 
 class LRSLOPE(BaseIndicator):
     """
-    Linear Regression Slope
+    Linear Regression Slope - matches TradingView exactly
     
-    Calculates the slope of the linear regression line.
+    TradingView calculates slope as the difference between consecutive 
+    linear regression values divided by interval:
+    linear_reg = linreg(close_price, len, 0)
+    linear_reg_prev = linreg(close[1], len, 0)  
+    slope = ((linear_reg - linear_reg_prev) / interval)
     """
     
     def __init__(self):
@@ -88,38 +92,39 @@ class LRSLOPE(BaseIndicator):
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_slope(data: np.ndarray, period: int) -> np.ndarray:
-        """Numba optimized slope calculation"""
-        n = len(data)
-        result = np.full(n, np.nan)
+    def _calculate_linreg_value(data: np.ndarray, period: int, offset: int) -> float:
+        """Calculate linear regression value at given offset"""
+        y = data
+        x = np.arange(len(y))
         
-        for i in range(period - 1, n):
-            y = data[i - period + 1:i + 1]
-            x = np.arange(period)
-            
-            sum_x = np.sum(x)
-            sum_y = np.sum(y)
-            sum_xy = np.sum(x * y)
-            sum_x2 = np.sum(x * x)
-            
-            denominator = period * sum_x2 - sum_x * sum_x
-            if denominator != 0:
-                result[i] = (period * sum_xy - sum_x * sum_y) / denominator
-            else:
-                result[i] = 0
+        sum_x = np.sum(x)
+        sum_y = np.sum(y)
+        sum_xy = np.sum(x * y)
+        sum_x2 = np.sum(x * x)
         
-        return result
+        denominator = period * sum_x2 - sum_x * sum_x
+        if denominator != 0:
+            slope = (period * sum_xy - sum_x * sum_y) / denominator
+            intercept = (sum_y - slope * sum_x) / period
+            
+            # Calculate value at offset position (TradingView uses offset 0 for current)
+            return slope * (period - 1 - offset) + intercept
+        else:
+            return y[-1 - offset] if offset < len(y) else y[-1]
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> Union[np.ndarray, pd.Series]:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], 
+                 period: int = 100, interval: int = 1) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate Linear Regression Slope
+        Calculate Linear Regression Slope - matches TradingView exactly
         
         Parameters:
         -----------
         data : Union[np.ndarray, pd.Series, list]
             Price data (typically closing prices)
-        period : int, default=14
-            Period for slope calculation
+        period : int, default=100
+            Period for linear regression calculation (TradingView default)
+        interval : int, default=1
+            Interval divisor (TradingView uses timeframe interval)
             
         Returns:
         --------
@@ -127,10 +132,60 @@ class LRSLOPE(BaseIndicator):
             Slope values in the same format as input
         """
         validated_data, input_type, index = self.validate_input(data)
-        self.validate_period(period, len(validated_data))
+        self.validate_period(period + 1, len(validated_data))  # Need period+1 for TradingView method
         
-        result = self._calculate_slope(validated_data, period)
+        if interval <= 0:
+            raise ValueError(f"Interval must be positive, got {interval}")
+        
+        result = _calculate_slope_tv(validated_data, period, interval)
         return self.format_output(result, input_type, index)
+
+
+@jit(nopython=True)
+def _calculate_linreg_value_standalone(data: np.ndarray, period: int, offset: int) -> float:
+    """Calculate linear regression value at given offset (standalone function)"""
+    y = data
+    x = np.arange(len(y))
+    
+    sum_x = np.sum(x)
+    sum_y = np.sum(y)
+    sum_xy = np.sum(x * y)
+    sum_x2 = np.sum(x * x)
+    
+    denominator = period * sum_x2 - sum_x * sum_x
+    if denominator != 0:
+        slope = (period * sum_xy - sum_x * sum_y) / denominator
+        intercept = (sum_y - slope * sum_x) / period
+        
+        # Calculate value at offset position (TradingView uses offset 0 for current)
+        return slope * (period - 1 - offset) + intercept
+    else:
+        return y[-1 - offset] if offset < len(y) else y[-1]
+
+
+@jit(nopython=True) 
+def _calculate_slope_tv(data: np.ndarray, period: int, interval: int = 1) -> np.ndarray:
+    """
+    Calculate slope using TradingView method:
+    slope = ((linreg(close, len, 0) - linreg(close[1], len, 0)) / interval)
+    """
+    n = len(data)
+    result = np.full(n, np.nan)
+    
+    for i in range(period, n):  # Start from period (not period-1) to have previous value
+        # Current window
+        current_window = data[i - period + 1:i + 1]
+        # Previous window (shifted by 1)
+        prev_window = data[i - period:i] 
+        
+        # Calculate linear regression values
+        linear_reg = _calculate_linreg_value_standalone(current_window, period, 0)
+        linear_reg_prev = _calculate_linreg_value_standalone(prev_window, period, 0)
+        
+        # Calculate slope as TradingView does
+        result[i] = (linear_reg - linear_reg_prev) / interval
+    
+    return result
 
 
 class CORREL(BaseIndicator):

@@ -314,17 +314,19 @@ t3_21 = ta.t3(close, 21, 0.7)
 
 ### 12. Fractal Adaptive Moving Average (FRAMA)
 
-**Description**: Uses fractal geometry to adapt to price movements.
+**Description**: Uses fractal geometry to adapt to price movements - matches TradingView exactly.
 
 **Parameters**:
-- `data`: Price data
-- `period`: Number of periods (default: 16)
+- `high`: High prices
+- `low`: Low prices  
+- `period`: Number of periods (default: 26)
 
-**Returns**: Array of FRAMA values
+**Returns**: Array of FRAMA values in the same format as input
 
 ```python
 # Example
-frama_16 = ta.frama(close, 16)
+frama_26 = ta.frama(high, low, 26)
+frama_default = ta.frama(high, low)  # Uses default period=26
 ```
 
 ### 13. Supertrend
@@ -510,20 +512,22 @@ if close[-1] > tenkan[-1] and tenkan[-1] > kijun[-1]:
 
 ### 20. Chande Kroll Stop
 
-**Description**: Volatility-based trailing stop that adapts to market conditions using ATR.
+**Description**: Volatility-based trailing stop that adapts to market conditions using ATR - matches TradingView exactly.
 
 **Parameters**:
 - `high`: High prices
 - `low`: Low prices
 - `close`: Close prices
-- `period`: ATR period (default: 10)
-- `atr_multiplier`: ATR multiplier (default: 1.0)
+- `p`: ATR period (default: 10)
+- `x`: ATR multiplier (default: 1.0)
+- `q`: Stop period (default: 9)
 
-**Returns**: Tuple of (Long Stop, Short Stop)
+**Returns**: Tuple of (Long Stop, Short Stop) in the same format as input
 
 ```python
 # Example
-long_stop, short_stop = ta.ckstop(high, low, close, 10, 1.0)
+long_stop, short_stop = ta.ckstop(high, low, close, 10, 1.0, 9)
+ckstop_default_long, ckstop_default_short = ta.ckstop(high, low, close)  # Uses defaults
 
 # Stop-loss management
 for i in range(len(close)):
@@ -731,17 +735,19 @@ for i in range(len(bull_power)):
 
 ### 8. Fisher Transform
 
-**Description**: Converts price to Gaussian distribution for clearer signals.
+**Description**: Converts price to Gaussian distribution for clearer signals - matches TradingView exactly.
 
 **Parameters**:
-- `data`: Price data (typically median price)
-- `period`: Smoothing period (default: 10)
+- `high`: High prices
+- `low`: Low prices
+- `length`: Smoothing length (default: 9)
 
-**Returns**: Tuple of (Fisher Transform, Trigger line)
+**Returns**: Tuple of (Fisher Transform, Trigger line) in the same format as input
 
 ```python
 # Example
-fisher, trigger = ta.fisher(close, 10)
+fisher, trigger = ta.fisher(high, low, 9)
+fisher_default, trigger_default = ta.fisher(high, low)  # Uses default length=9
 
 # Fisher Transform signals
 for i in range(1, len(fisher)):
@@ -754,19 +760,20 @@ for i in range(1, len(fisher)):
 
 ### 9. Connors RSI
 
-**Description**: Combines RSI, price streaks, and rate of change for enhanced momentum analysis.
+**Description**: Combines RSI, price streaks, and rate of change for enhanced momentum analysis - matches TradingView exactly.
 
 **Parameters**:
 - `data`: Close prices
-- `rsi_period`: RSI period (default: 3)
-- `streak_period`: Streak period (default: 2)
-- `roc_period`: ROC period (default: 100)
+- `lenrsi`: RSI length (default: 3)
+- `lenupdown`: Up/Down streak length (default: 2)
+- `lenroc`: ROC length (default: 100)
 
-**Returns**: Array of Connors RSI values (0-100)
+**Returns**: Array of Connors RSI values (0-100) in the same format as input
 
 ```python
 # Example
 crsi = ta.crsi(close, 3, 2, 100)
+crsi_default = ta.crsi(close)  # Uses defaults: lenrsi=3, lenupdown=2, lenroc=100
 
 # Connors RSI signals
 for i, value in enumerate(crsi):
@@ -806,19 +813,20 @@ for i, value in enumerate(chop):
 
 ### 12. Know Sure Thing (KST)
 
-**Description**: Momentum oscillator based on multiple rate-of-change periods.
+**Description**: Momentum oscillator based on multiple rate-of-change periods - matches TradingView exactly.
 
 **Parameters**:
-- `close`: Close prices
-- `roc1`, `roc2`, `roc3`, `roc4`: ROC periods (default: 10, 15, 20, 30)
-- `sma1`, `sma2`, `sma3`, `sma4`: SMA periods (default: 10, 10, 10, 15)
-- `signal_period`: Signal line SMA period (default: 9)
+- `data`: Close prices
+- `roclen1`, `roclen2`, `roclen3`, `roclen4`: ROC periods (default: 10, 15, 20, 30)
+- `smalen1`, `smalen2`, `smalen3`, `smalen4`: SMA periods (default: 10, 10, 10, 15)
+- `siglen`: Signal line SMA period (default: 9)
 
-**Returns**: Tuple of (KST line, Signal line)
+**Returns**: Tuple of (KST line, Signal line) in the same format as input
 
 ```python
 # Example
-kst_line, kst_signal = ta.kst(close)
+kst_line, kst_signal = ta.kst(close, 10, 15, 20, 30, 10, 10, 10, 15, 9)
+kst_default_line, kst_default_signal = ta.kst(close)  # Uses defaults
 
 # Signal line crossovers
 for i in range(1, len(kst_line)):
@@ -1323,20 +1331,22 @@ for i, (long_exit, short_exit) in enumerate(zip(ce_long, ce_short)):
 
 ### 15. Historical Volatility (HV)
 
-**Description**: Measures the volatility of returns over a specified period.
+**Description**: Measures the volatility of returns over a specified period - matches TradingView exactly.
 
-**Formula**: HV = StdDev(ln(Close/Close[1])) × √252 × 100
+**Formula**: HV = StdDev(ln(Close/Close[1])) × √annual × 100
 
 **Parameters**:
 - `close`: Close prices
-- `period`: Number of periods (default: 20)
-- `annualize`: Annualize result (default: True)
+- `length`: Number of periods (default: 10)
+- `annual`: Annual trading days (default: 365)
+- `per`: Calculation period (default: 1)
 
-**Returns**: Array of HV values (percentage)
+**Returns**: Array of HV values (percentage) in the same format as input
 
 ```python
 # Example
-hv = ta.hv(close, 20, True)
+hv = ta.hv(close, 10, 365, 1)
+hv_default = ta.hv(close)  # Uses defaults: length=10, annual=365, per=1
 
 # Volatility levels
 for i, value in enumerate(hv):
@@ -1541,36 +1551,40 @@ for i, value in enumerate(cmf_20):
 
 ### 6. Ease of Movement (EMV)
 
-**Description**: Shows relationship between price change and volume.
+**Description**: Shows relationship between price change and volume - matches TradingView exactly.
 
 **Parameters**:
 - `high`: High prices
 - `low`: Low prices
 - `volume`: Volume data
-- `scale`: Scale factor (default: 1000000)
+- `length`: EMA smoothing length (default: 14)
+- `divisor`: Scale divisor (default: 10000)
 
-**Returns**: Array of EMV values
+**Returns**: Array of EMV values in the same format as input
 
 ```python
 # Example
-emv = ta.emv(high, low, volume, 1000000)
+emv = ta.emv(high, low, volume, 14, 10000)
+emv_default = ta.emv(high, low, volume)  # Uses defaults
 ```
 
 ### 7. Force Index
 
-**Description**: Combines price and volume to measure buying/selling pressure.
+**Description**: Combines price and volume to measure buying/selling pressure - matches TradingView exactly.
 
-**Formula**: FI = Volume × (Close - Previous Close)
+**Formula**: FI = EMA(Volume × (Close - Previous Close), length)
 
 **Parameters**:
 - `close`: Close prices
 - `volume`: Volume data
+- `length`: EMA smoothing length (default: 13)
 
-**Returns**: Array of Force Index values
+**Returns**: Array of Force Index values in the same format as input
 
 ```python
 # Example
-force_idx = ta.force_index(close, volume)
+force_idx = ta.force_index(close, volume, 13)
+force_default = ta.force_index(close, volume)  # Uses default length=13
 
 # Strong moves
 for i, value in enumerate(force_idx):
@@ -1903,24 +1917,26 @@ po_ema = ta.po(close, 10, 20, "EMA")
 
 ### 9. Detrended Price Oscillator (DPO)
 
-**Description**: Removes trend from price to identify cycles.
+**Description**: Removes trend from price to identify cycles - matches TradingView exactly.
 
 **Formula**: DPO = Price - SMA(shifted back)
 
 **Parameters**:
 - `data`: Price data
-- `period`: Number of periods (default: 20)
+- `period`: Number of periods (default: 21)
+- `is_centered`: Whether to center the calculation (default: False)
 
-**Returns**: Array of DPO values
+**Returns**: Array of DPO values in the same format as input
 
 ```python
 # Example
-dpo_20 = ta.dpo(close, 20)
+dpo_21 = ta.dpo(close, 21, False)
+dpo_default = ta.dpo(close)  # Uses default period=21, is_centered=False
 
 # Cycle identification
-for i in range(1, len(dpo_20)):
-    if not np.isnan(dpo_20[i]) and not np.isnan(dpo_20[i-1]):
-        if dpo_20[i] > 0 and dpo_20[i-1] <= 0:
+for i in range(1, len(dpo_21)):
+    if not np.isnan(dpo_21[i]) and not np.isnan(dpo_21[i-1]):
+        if dpo_21[i] > 0 and dpo_21[i-1] <= 0:
             print(f"Day {i}: Cycle low detected")
 ```
 
@@ -1979,20 +1995,22 @@ for i in range(1, len(linreg_14)):
 
 ### 2. Linear Regression Slope
 
-**Description**: Slope of the linear regression line.
+**Description**: Slope of the linear regression line - matches TradingView exactly.
 
 **Parameters**:
 - `data`: Price data
-- `period`: Number of periods (default: 14)
+- `period`: Number of periods (default: 100)
+- `interval`: Calculation interval (default: 1)
 
 **Returns**: Array of slope values
 
 ```python
 # Example
-lr_slope_14 = ta.lrslope(close, 14)
+lr_slope_100 = ta.lrslope(close, 100, 1)
+lr_slope_default = ta.lrslope(close)  # Uses default period=100, interval=1
 
 # Trend strength
-for i, slope in enumerate(lr_slope_14):
+for i, slope in enumerate(lr_slope_100):
     if not np.isnan(slope):
         if abs(slope) > 0.5:
             direction = "up" if slope > 0 else "down"
@@ -2294,24 +2312,28 @@ for i in range(len(close)):
             print(f"Day {i}: Long position, stop {stop_distance:.2f} below")
 ```
 
-### 7. Hilbert Transform Trendline
+### 7. Hilbert Transform Sine Wave Support and Resistance
 
-**Description**: Advanced signal processing technique for trend identification.
+**Description**: Advanced signal processing technique using Hilbert Transform - matches TradingView exactly.
 
 **Parameters**:
-- `data`: Price data
+- `close`: Close prices
+- `high`: High prices
+- `low`: Low prices
 
-**Returns**: Array of trendline values
+**Returns**: Tuple of (sine, leadsine, support, resistance) in the same format as input
 
 ```python
 # Example
-ht_trendline = ta.ht(close)
+sine, leadsine, support, resistance = ta.ht(close, high, low)
 
-# Smooth trend indicator
+# Support/Resistance levels
 for i in range(1, len(close)):
-    if not np.isnan(ht_trendline[i]):
-        if close[i] > ht_trendline[i] and close[i-1] <= ht_trendline[i-1]:
-            print(f"Day {i}: Price crossed above Hilbert Trendline")
+    if not np.isnan(support[i]) and not np.isnan(resistance[i]):
+        if close[i] > resistance[i]:
+            print(f"Day {i}: Price above resistance at {resistance[i]:.2f}")
+        elif close[i] < support[i]:
+            print(f"Day {i}: Price below support at {support[i]:.2f}")
 ```
 
 ### 8. Zig Zag
@@ -2338,18 +2360,19 @@ for i, value in enumerate(zigzag):
 
 ### 9. Williams Fractals
 
-**Description**: Identifies potential reversal points using fractal geometry.
+**Description**: Identifies potential reversal points using fractal geometry - matches TradingView exactly.
 
 **Parameters**:
 - `high`: High prices
 - `low`: Low prices
-- `period`: Number of periods (default: 2)
+- `periods`: Number of periods on each side (default: 2)
 
-**Returns**: Tuple of (Fractal High, Fractal Low)
+**Returns**: Tuple of (Fractal High, Fractal Low) in the same format as input
 
 ```python
 # Example
 fractal_high, fractal_low = ta.fractals(high, low, 2)
+fractals_default_high, fractals_default_low = ta.fractals(high, low)  # Uses default periods=2
 
 # Identify fractal signals
 for i in range(len(high)):

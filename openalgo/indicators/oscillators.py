@@ -559,12 +559,14 @@ class PO(BaseIndicator):
 
 class DPO(BaseIndicator):
     """
-    Detrended Price Oscillator
+    Detrended Price Oscillator - matches TradingView exactly
     
-    DPO attempts to eliminate the trend in prices by comparing a past price 
-    to a moving average.
+    DPO attempts to eliminate the trend in prices by comparing a current or past price 
+    to a moving average. TradingView offers both centered and non-centered modes.
     
-    Formula: DPO = Price[n/2 + 1 periods ago] - SMA(n)
+    Centered Mode: DPO = Close[barsback] - SMA(Close, period)
+    Non-Centered Mode: DPO = Close - SMA(Close, period)[barsback]
+    Where: barsback = period/2 + 1
     """
     
     def __init__(self):
@@ -582,16 +584,20 @@ class DPO(BaseIndicator):
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> Union[np.ndarray, pd.Series]:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], 
+                 period: int = 21, is_centered: bool = False) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate Detrended Price Oscillator
+        Calculate Detrended Price Oscillator - matches TradingView exactly
         
         Parameters:
         -----------
         data : Union[np.ndarray, pd.Series, list]
             Price data (typically closing prices)
-        period : int, default=20
-            Period for SMA calculation
+        period : int, default=21
+            Length for SMA calculation (TradingView default)
+        is_centered : bool, default=False
+            When False (default): DPO = Close - SMA[barsback] (non-centered)
+            When True: DPO = Close[barsback] - SMA (centered)
             
         Returns:
         --------
@@ -604,13 +610,24 @@ class DPO(BaseIndicator):
         # Calculate SMA
         sma = self._calculate_sma(validated_data, period)
         
+        # Calculate barsback = period/2 + 1 (TradingView formula)
+        barsback = int(period / 2 + 1)
+        
         # Calculate DPO
         dpo = np.full_like(validated_data, np.nan)
-        offset = period // 2 + 1
         
-        for i in range(offset, len(validated_data)):
-            if not np.isnan(sma[i]):
-                dpo[i] = validated_data[i - offset] - sma[i]
+        if is_centered:
+            # Centered mode: close[barsback] - ma
+            # DPO line is offset to the left
+            for i in range(barsback, len(validated_data)):
+                if not np.isnan(sma[i]):
+                    dpo[i] = validated_data[i - barsback] - sma[i]
+        else:
+            # Non-centered mode: close - ma[barsback] 
+            # DPO shifts back to match current price
+            for i in range(barsback, len(validated_data)):
+                if not np.isnan(sma[i - barsback]):
+                    dpo[i] = validated_data[i] - sma[i - barsback]
         
         return self.format_output(dpo, input_type, index)
 
@@ -628,38 +645,57 @@ class AROONOSC(BaseIndicator):
         super().__init__("Aroon Oscillator")
     
     @staticmethod
-    @jit(nopython=True)
+    # @jit(nopython=True)  # Disabled for consistency with Aroon fix
     def _calculate_aroon_osc(high: np.ndarray, low: np.ndarray, period: int) -> np.ndarray:
-        """Numba optimized Aroon Oscillator calculation"""
+        """
+        Aroon Oscillator calculation matching TradingView logic
+        
+        TradingView formula:
+        upper = 100 * (highestbars(high, length+1) + length)/length
+        lower = 100 * (lowestbars(low, length+1) + length)/length
+        oscillator = upper - lower
+        """
         n = len(high)
         result = np.full(n, np.nan)
         
-        for i in range(period - 1, n):
-            # Find highest high and lowest low positions
-            high_window = high[i - period + 1:i + 1]
-            low_window = low[i - period + 1:i + 1]
+        # TradingView uses period + 1 bars for lookback
+        lookback = period + 1
+        
+        for i in range(lookback - 1, n):
+            # Find highest high and lowest low positions in the window (period + 1 bars)
+            window_start = i - lookback + 1
+            window_end = i + 1
+            high_window = high[window_start:window_end]
+            low_window = low[window_start:window_end]
             
+            # Find positions of highest high and lowest low
+            # Use FIRST occurrence to match TradingView behavior
             highest_pos = 0
             lowest_pos = 0
             
             for j in range(len(high_window)):
-                if high_window[j] >= high_window[highest_pos]:
+                if high_window[j] > high_window[highest_pos]:  # Changed >= to > for first occurrence
                     highest_pos = j
-                if low_window[j] <= low_window[lowest_pos]:
+                if low_window[j] < low_window[lowest_pos]:     # Changed <= to < for first occurrence
                     lowest_pos = j
             
-            # Calculate Aroon Up and Down
-            aroon_up = ((period - (period - 1 - highest_pos)) / period) * 100
-            aroon_down = ((period - (period - 1 - lowest_pos)) / period) * 100
+            # Calculate bars since highest/lowest (0 = current bar)
+            bars_since_high = len(high_window) - 1 - highest_pos
+            bars_since_low = len(low_window) - 1 - lowest_pos
             
-            # Aroon Oscillator
+            # TradingView formula: 100 * (ta.highestbars + period) / period
+            # ta.highestbars returns -bars_since_high, so:
+            aroon_up = 100 * (period - bars_since_high) / period
+            aroon_down = 100 * (period - bars_since_low) / period
+            
+            # Aroon Oscillator = Aroon Up - Aroon Down
             result[i] = aroon_up - aroon_down
         
         return result
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 period: int = 25) -> Union[np.ndarray, pd.Series]:
+                 period: int = 14) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Aroon Oscillator
         
@@ -669,7 +705,7 @@ class AROONOSC(BaseIndicator):
             High prices
         low : Union[np.ndarray, pd.Series, list]
             Low prices
-        period : int, default=25
+        period : int, default=14
             Period for Aroon calculation
             
         Returns:
@@ -1129,12 +1165,14 @@ class CHOP(BaseIndicator):
 
 class KST(BaseIndicator):
     """
-    Know Sure Thing (KST)
+    Know Sure Thing (KST) - matches TradingView exactly
     
     KST is a momentum oscillator developed by Martin Pring based on the smoothed rate-of-change values.
     
-    Formula: KST = (RCMA1 × 1) + (RCMA2 × 2) + (RCMA3 × 3) + (RCMA4 × 4)
-    Where RCMA = SMA of ROC
+    TradingView Formula:
+    smaroc(roclen, smalen) => ta.sma(ta.roc(close, roclen), smalen)
+    kst = smaroc(roclen1, smalen1) + 2 * smaroc(roclen2, smalen2) + 3 * smaroc(roclen3, smalen3) + 4 * smaroc(roclen4, smalen4)
+    sig = ta.sma(kst, siglen)
     """
     
     def __init__(self):
@@ -1200,22 +1238,22 @@ class KST(BaseIndicator):
         return result
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 roc1: int = 10, roc2: int = 15, roc3: int = 20, roc4: int = 30,
-                 sma1: int = 10, sma2: int = 10, sma3: int = 10, sma4: int = 15,
-                 signal: int = 9) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+                 roclen1: int = 10, roclen2: int = 15, roclen3: int = 20, roclen4: int = 30,
+                 smalen1: int = 10, smalen2: int = 10, smalen3: int = 10, smalen4: int = 15,
+                 siglen: int = 9) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
-        Calculate Know Sure Thing
+        Calculate Know Sure Thing - matches TradingView exactly
         
         Parameters:
         -----------
         data : Union[np.ndarray, pd.Series, list]
-            Price data (typically closing prices)
-        roc1, roc2, roc3, roc4 : int
-            ROC periods
-        sma1, sma2, sma3, sma4 : int
-            SMA periods for smoothing ROC
-        signal : int, default=9
-            Signal line period
+            Close price data
+        roclen1, roclen2, roclen3, roclen4 : int
+            ROC Length periods (TradingView: roclen1, roclen2, roclen3, roclen4)
+        smalen1, smalen2, smalen3, smalen4 : int
+            SMA Length periods for smoothing ROC (TradingView: smalen1, smalen2, smalen3, smalen4)
+        siglen : int, default=9
+            Signal Line Length (TradingView: siglen)
             
         Returns:
         --------
@@ -1224,23 +1262,32 @@ class KST(BaseIndicator):
         """
         validated_data, input_type, index = self.validate_input(data)
         
-        # Calculate ROCs
-        roc_1 = self._calculate_roc(validated_data, roc1)
-        roc_2 = self._calculate_roc(validated_data, roc2)
-        roc_3 = self._calculate_roc(validated_data, roc3)
-        roc_4 = self._calculate_roc(validated_data, roc4)
+        # Validate parameters
+        for param, name in [(roclen1, "roclen1"), (roclen2, "roclen2"), (roclen3, "roclen3"), (roclen4, "roclen4"),
+                           (smalen1, "smalen1"), (smalen2, "smalen2"), (smalen3, "smalen3"), (smalen4, "smalen4"),
+                           (siglen, "siglen")]:
+            if param <= 0:
+                raise ValueError(f"{name} must be positive, got {param}")
         
-        # Calculate smoothed ROCs
-        rcma_1 = self._calculate_sma(roc_1, sma1)
-        rcma_2 = self._calculate_sma(roc_2, sma2)
-        rcma_3 = self._calculate_sma(roc_3, sma3)
-        rcma_4 = self._calculate_sma(roc_4, sma4)
+        # Calculate ROCs using TradingView naming
+        roc_1 = self._calculate_roc(validated_data, roclen1)
+        roc_2 = self._calculate_roc(validated_data, roclen2)
+        roc_3 = self._calculate_roc(validated_data, roclen3)
+        roc_4 = self._calculate_roc(validated_data, roclen4)
         
-        # Calculate KST
-        kst = rcma_1 * 1 + rcma_2 * 2 + rcma_3 * 3 + rcma_4 * 4
+        # Calculate smoothed ROCs (smaroc function)
+        smaroc_1 = self._calculate_sma(roc_1, smalen1)
+        smaroc_2 = self._calculate_sma(roc_2, smalen2)
+        smaroc_3 = self._calculate_sma(roc_3, smalen3)
+        smaroc_4 = self._calculate_sma(roc_4, smalen4)
         
-        # Calculate signal line
-        signal_line = self._calculate_ema(kst, signal)
+        # Calculate KST using TradingView formula
+        # kst = smaroc(roclen1, smalen1) + 2 * smaroc(roclen2, smalen2) + 3 * smaroc(roclen3, smalen3) + 4 * smaroc(roclen4, smalen4)
+        kst = smaroc_1 * 1 + smaroc_2 * 2 + smaroc_3 * 3 + smaroc_4 * 4
+        
+        # Calculate signal line using SMA (not EMA) to match TradingView
+        # sig = ta.sma(kst, siglen)
+        signal_line = self._calculate_sma(kst, siglen)
         
         results = (kst, signal_line)
         return self.format_multiple_outputs(results, input_type, index)
@@ -1430,68 +1477,107 @@ class VI(BaseIndicator):
 
 class GatorOscillator(BaseIndicator):
     """
-    Gator Oscillator (Bill Williams)
+    Gator Oscillator (Bill Williams) - matches TradingView exactly
     
     The Gator Oscillator shows the convergence/divergence of the Alligator lines.
+    Based on the Bill Williams Alligator indicator with offset.
     
-    Formula:
-    Upper Histogram = |Jaw - Teeth|
-    Lower Histogram = -|Teeth - Lips|
+    TradingView Formula:
+    jaw = offset(rma(hl2, 13), 8)
+    teeth = offset(rma(hl2, 8), 5)  
+    lips = offset(rma(hl2, 5), 3)
+    upper = abs(jaw - teeth)
+    lower = -abs(teeth - lips)
     """
     
     def __init__(self):
-        super().__init__("Gator")
+        super().__init__("Gator Oscillator")
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_smma(data: np.ndarray, period: int) -> np.ndarray:
-        """Calculate Smoothed Moving Average (SMMA)"""
+    def _calculate_rma(data: np.ndarray, period: int) -> np.ndarray:
+        """
+        Calculate RMA (Running Moving Average) - TradingView's rma() function
+        This is equivalent to SMMA/SMMA/EMA with alpha = 1/period
+        """
         n = len(data)
         result = np.full(n, np.nan)
         
         if n < period:
             return result
         
-        # Initialize with SMA
+        # Initialize first value as SMA
         result[period - 1] = np.mean(data[:period])
         
-        # Calculate SMMA
+        # Calculate RMA: rma[i] = (rma[i-1] * (period-1) + data[i]) / period
         for i in range(period, n):
             result[i] = (result[i - 1] * (period - 1) + data[i]) / period
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list],
+    @staticmethod
+    @jit(nopython=True)
+    def _apply_offset(data: np.ndarray, offset: int) -> np.ndarray:
+        """
+        Apply TradingView offset function - shifts data forward by offset periods
+        TradingView offset(series, offset) shifts the series forward
+        """
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        # Shift forward by offset periods
+        for i in range(offset, n):
+            result[i] = data[i - offset]
+        
+        return result
+    
+    def calculate(self, high: Union[np.ndarray, pd.Series, list],
+                 low: Union[np.ndarray, pd.Series, list],
                  jaw_period: int = 13, teeth_period: int = 8, lips_period: int = 5) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
-        Calculate Gator Oscillator
+        Calculate Gator Oscillator - matches TradingView exactly
         
         Parameters:
         -----------
-        data : Union[np.ndarray, pd.Series, list]
-            Price data (typically (high + low) / 2)
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
         jaw_period : int, default=13
-            Period for Jaw line
+            Period for Jaw line (TradingView default)
         teeth_period : int, default=8
-            Period for Teeth line
+            Period for Teeth line (TradingView default)
         lips_period : int, default=5
-            Period for Lips line
+            Period for Lips line (TradingView default)
             
         Returns:
         --------
         Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
             (upper_histogram, lower_histogram) in the same format as input
+            upper_histogram = abs(jaw - teeth)
+            lower_histogram = -abs(teeth - lips)
         """
-        validated_data, input_type, index = self.validate_input(data)
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
         
-        # Calculate SMMA for each line
-        jaw = self._calculate_smma(validated_data, jaw_period)
-        teeth = self._calculate_smma(validated_data, teeth_period)
-        lips = self._calculate_smma(validated_data, lips_period)
+        high_data, low_data = self.align_arrays(high_data, low_data)
         
-        # Calculate histograms
-        upper_histogram = np.abs(jaw - teeth)
-        lower_histogram = -np.abs(teeth - lips)
+        # Calculate hl2 (TradingView's hl2)
+        hl2 = (high_data + low_data) / 2.0
+        
+        # Calculate RMA for each Alligator line
+        jaw_rma = self._calculate_rma(hl2, jaw_period)
+        teeth_rma = self._calculate_rma(hl2, teeth_period)
+        lips_rma = self._calculate_rma(hl2, lips_period)
+        
+        # Apply TradingView offsets
+        jaw = self._apply_offset(jaw_rma, 8)      # offset(rma(hl2, 13), 8)
+        teeth = self._apply_offset(teeth_rma, 5)  # offset(rma(hl2, 8), 5)
+        lips = self._apply_offset(lips_rma, 3)    # offset(rma(hl2, 5), 3)
+        
+        # Calculate Gator Oscillator histograms
+        upper_histogram = np.abs(jaw - teeth)     # abs(jaw - teeth)
+        lower_histogram = -np.abs(teeth - lips)   # -abs(teeth - lips)
         
         results = (upper_histogram, lower_histogram)
         return self.format_multiple_outputs(results, input_type, index)

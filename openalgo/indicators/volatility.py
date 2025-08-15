@@ -336,10 +336,8 @@ class Chaikin(BaseIndicator):
     def _calculate_ema(data: np.ndarray, period: int) -> np.ndarray:
         """Calculate EMA"""
         n = len(data)
-        result = np.empty(n)
+        result = np.full(n, np.nan)  # Initialize with NaN
         alpha = 2.0 / (period + 1)
-        
-        result[:period-1] = np.nan
         
         # Initial SMA seed
         sma = 0.0
@@ -383,13 +381,13 @@ class Chaikin(BaseIndicator):
         hl_range = high_data - low_data
         
         # Calculate EMA of the range
-        ema_range = self._calculate_ema(hl_range, ema_period)
+        ema_range = self._calculate_ema(hl_range, int(ema_period))
         
         # Calculate rate of change
         cv = np.full_like(ema_range, np.nan)
-        for i in range(roc_period, len(ema_range)):
-            if ema_range[i - roc_period] != 0:
-                cv[i] = ((ema_range[i] - ema_range[i - roc_period]) / ema_range[i - roc_period]) * 100
+        for i in range(int(roc_period), len(ema_range)):
+            if ema_range[i - int(roc_period)] != 0:
+                cv[i] = ((ema_range[i] - ema_range[i - int(roc_period)]) / ema_range[i - int(roc_period)]) * 100
         
         return self.format_output(cv, input_type, index)
 
@@ -755,10 +753,8 @@ class MASS(BaseIndicator):
     def _calculate_ema(data: np.ndarray, period: int) -> np.ndarray:
         """Calculate EMA"""
         n = len(data)
-        result = np.empty(n)
+        result = np.full(n, np.nan)  # Initialize with NaN
         alpha = 2.0 / (period + 1)
-        
-        result[:period-1] = np.nan
         
         sma_seed = 0.0
         for i in range(period):
@@ -1101,71 +1097,107 @@ class ChandelierExit(BaseIndicator):
         return self.format_multiple_outputs(results, input_type, index)
 
 
+
+@jit(nopython=True)
+def _calculate_stdev_tv(data: np.ndarray, period: int) -> np.ndarray:
+    """
+    Calculate standard deviation using TradingView's ta.stdev method
+    This matches TradingView's population standard deviation calculation
+    """
+    n = len(data)
+    result = np.full(n, np.nan)
+    
+    for i in range(period - 1, n):
+        window = data[i - period + 1:i + 1]
+        valid_data = window[~np.isnan(window)]
+        
+        if len(valid_data) == period:
+            # TradingView uses population standard deviation (N in denominator)
+            mean_val = np.mean(valid_data)
+            variance = np.sum((valid_data - mean_val) ** 2) / period
+            result[i] = np.sqrt(variance)
+    
+    return result
+
 class HistoricalVolatility(BaseIndicator):
     """
-    Historical Volatility (HV)
+    Historical Volatility (HV) - matches TradingView exactly
     
     Measures the standard deviation of logarithmic returns over a specified period.
+    Uses TradingView's exact formula with 365-day annualization and timeframe detection.
     
-    Formula: HV = STDEV(ln(Close/Close[-1]), period) × sqrt(252) × 100
+    TradingView Formula: 
+    hv = 100 * ta.stdev(math.log(close / close[1]), length) * math.sqrt(annual / per)
+    Where:
+    - annual = 365 (TradingView default)
+    - per = 1 for daily/intraday, 7 for weekly+ timeframes
     """
     
     def __init__(self):
-        super().__init__("HV")
+        super().__init__("Historical Volatility")
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_hv(data: np.ndarray, period: int, annualize: bool) -> np.ndarray:
-        """Numba optimized Historical Volatility calculation"""
-        n = len(data)
-        result = np.full(n, np.nan)
+    def _calculate_hv_tv(close: np.ndarray, length: int, annual: int, per: int) -> np.ndarray:
+        """
+        Calculate Historical Volatility using exact TradingView formula
+        hv = 100 * ta.stdev(math.log(close / close[1]), length) * math.sqrt(annual / per)
+        """
+        n = len(close)
         
-        # Calculate log returns
+        # Calculate log returns: math.log(close / close[1])
         log_returns = np.full(n, np.nan)
         for i in range(1, n):
-            if data[i - 1] > 0 and data[i] > 0:
-                log_returns[i] = np.log(data[i] / data[i - 1])
+            if close[i - 1] > 0 and close[i] > 0:
+                log_returns[i] = np.log(close[i] / close[i - 1])
         
-        # Calculate rolling standard deviation
-        for i in range(period, n):
-            window = log_returns[i - period + 1:i + 1]
-            valid_returns = window[~np.isnan(window)]
-            
-            if len(valid_returns) >= period:
-                mean_return = np.mean(valid_returns)
-                variance = np.mean((valid_returns - mean_return) ** 2)
-                std_dev = np.sqrt(variance)
-                
-                if annualize:
-                    result[i] = std_dev * np.sqrt(252) * 100  # Annualized percentage
-                else:
-                    result[i] = std_dev * 100  # Percentage
+        # Calculate standard deviation of log returns
+        stdev_returns = _calculate_stdev_tv(log_returns, length)
+        
+        # Apply TradingView formula: 100 * stdev * sqrt(annual / per)
+        annualization_factor = np.sqrt(annual / per)
+        result = 100.0 * stdev_returns * annualization_factor
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 period: int = 20, annualize: bool = True) -> Union[np.ndarray, pd.Series]:
+    def calculate(self, close: Union[np.ndarray, pd.Series, list],
+                 length: int = 10, annual: int = 365, per: int = 1) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate Historical Volatility
+        Calculate Historical Volatility - matches TradingView exactly
         
         Parameters:
         -----------
-        data : Union[np.ndarray, pd.Series, list]
-            Price data (typically closing prices)
-        period : int, default=20
-            Period for volatility calculation
-        annualize : bool, default=True
-            Whether to annualize the volatility
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        length : int, default=10
+            Period for volatility calculation (TradingView default)
+        annual : int, default=365
+            Annual periods for scaling (TradingView uses 365)
+        per : int, default=1
+            Timeframe periods (1 for daily/intraday, 7 for weekly+)
+            TradingView logic:
+            - per = 1 if timeframe.isintraday or (timeframe.isdaily and multiplier == 1)  
+            - per = 7 otherwise (weekly, monthly timeframes)
             
         Returns:
         --------
         Union[np.ndarray, pd.Series]
             Historical volatility values in the same format as input
+            Values are annualized percentages (e.g., 20.5 = 20.5% annual volatility)
         """
-        validated_data, input_type, index = self.validate_input(data)
-        self.validate_period(period + 1, len(validated_data))
+        close_data, input_type, index = self.validate_input(close)
+        self.validate_period(length + 1, len(close_data))
         
-        result = self._calculate_hv(validated_data, period, annualize)
+        if length < 1:
+            raise ValueError(f"Length must be at least 1, got {length}")
+        
+        if annual <= 0:
+            raise ValueError(f"Annual periods must be positive, got {annual}")
+            
+        if per <= 0:
+            raise ValueError(f"Per periods must be positive, got {per}")
+        
+        result = self._calculate_hv_tv(close_data, length, annual, per)
         return self.format_output(result, input_type, index)
 
 

@@ -21,7 +21,7 @@ from .volatility import (ATR, BollingerBands, Keltner, Donchian,
                         BBPercent, BBWidth, ChandelierExit,
                         HistoricalVolatility, UlcerIndex, STARC)
 from .volume import (OBV, VWAP, MFI, ADL, CMF, EMV, FI, NVI, PVI, VOLOSC, VROC,
-                    KlingerVolumeOscillator, PriceVolumeTrend)
+                    KlingerVolumeOscillator, PriceVolumeTrend, RVOL)
 from .oscillators import (ROC, CMO, TRIX, UO, AO, AC, PPO, PO, DPO, AROONOSC,
                          StochRSI, RVI, CHO, CHOP, KST, TSI, VI, 
                          GatorOscillator, STC)
@@ -101,7 +101,7 @@ class TechnicalAnalysis:
         self._chaikin_volatility = Chaikin()
         self._natr = NATR()
         self._rvi = RVI()  # Oscillator RVI (Relative Vigor Index)
-        self._volatility_rvi = VolatilityRVI()  # Volatility RVI (Relative Volatility Index)
+        self._rvol = RVOL()  # Relative Volume
         self._ultosc = ULTOSC()
         self._stddev = STDDEV()
         self._trange = TRANGE()
@@ -293,10 +293,10 @@ class TechnicalAnalysis:
     def ichimoku(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 tenkan_period: int = 9, kijun_period: int = 26,
-                 senkou_b_period: int = 52, displacement: int = 26) -> Tuple[np.ndarray, ...]:
+                 conversion_periods: int = 9, base_periods: int = 26,
+                 lagging_span2_periods: int = 52, displacement: int = 26) -> Tuple[np.ndarray, ...]:
         """
-        Ichimoku Cloud
+        Ichimoku Cloud - matches TradingView exactly
         
         Parameters:
         -----------
@@ -306,22 +306,22 @@ class TechnicalAnalysis:
             Low prices
         close : Union[np.ndarray, pd.Series, list]
             Closing prices
-        tenkan_period : int, default=9
-            Period for Tenkan-sen calculation
-        kijun_period : int, default=26
-            Period for Kijun-sen calculation
-        senkou_b_period : int, default=52
-            Period for Senkou Span B calculation
+        conversion_periods : int, default=9
+            Conversion Line Length (TradingView: conversionPeriods)
+        base_periods : int, default=26
+            Base Line Length (TradingView: basePeriods)
+        lagging_span2_periods : int, default=52
+            Leading Span B Length (TradingView: laggingSpan2Periods)
         displacement : int, default=26
-            Displacement for Senkou Spans and Chikou Span
+            Lagging Span displacement (TradingView: displacement)
             
         Returns:
         --------
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
-            (tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b, chikou_span)
+            (conversion_line, base_line, leading_span_a, leading_span_b, lagging_span)
         """
-        return self._ichimoku.calculate(high, low, close, tenkan_period, 
-                                       kijun_period, senkou_b_period, displacement)
+        return self._ichimoku.calculate(high, low, close, conversion_periods, 
+                                       base_periods, lagging_span2_periods, displacement)
     
     def hma(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
         """Hull Moving Average"""
@@ -338,9 +338,9 @@ class TechnicalAnalysis:
         return self._alma.calculate(data, period, offset, sigma)
     
     def kama(self, data: Union[np.ndarray, pd.Series, list],
-             period: int = 10, fast_period: int = 2, slow_period: int = 30) -> np.ndarray:
-        """Kaufman's Adaptive Moving Average"""
-        return self._kama.calculate(data, period, fast_period, slow_period)
+             length: int = 14, fast_length: int = 2, slow_length: int = 30) -> np.ndarray:
+        """Kaufman's Adaptive Moving Average - matches TradingView exactly"""
+        return self._kama.calculate(data, length, fast_length, slow_length)
     
     def zlema(self, data: Union[np.ndarray, pd.Series, list], period: int) -> np.ndarray:
         """Zero Lag Exponential Moving Average"""
@@ -351,9 +351,10 @@ class TechnicalAnalysis:
         """T3 Moving Average"""
         return self._t3.calculate(data, period, v_factor)
     
-    def frama(self, data: Union[np.ndarray, pd.Series, list], period: int = 16) -> np.ndarray:
-        """Fractal Adaptive Moving Average"""
-        return self._frama.calculate(data, period)
+    def frama(self, high: Union[np.ndarray, pd.Series, list],
+              low: Union[np.ndarray, pd.Series, list], period: int = 26) -> Union[np.ndarray, pd.Series]:
+        """Fractal Adaptive Moving Average - matches TradingView exactly"""
+        return self._frama.calculate(high, low, period)
     
     # =================== MOMENTUM INDICATORS ===================
     
@@ -589,10 +590,9 @@ class TechnicalAnalysis:
         """Normalized Average True Range"""
         return self._natr.calculate(high, low, close, period)
     
-    def rvol(self, data: Union[np.ndarray, pd.Series, list],
-                      stdev_period: int = 10, rsi_period: int = 14) -> np.ndarray:
-        """Relative Volatility Index"""
-        return self._volatility_rvi.calculate(data, stdev_period, rsi_period)
+    def rvol(self, volume: Union[np.ndarray, pd.Series, list], period: int = 20) -> Union[np.ndarray, pd.Series]:
+        """Relative Volume"""
+        return self._rvol.calculate(volume, period)
     
     def ultimate_oscillator(self, high: Union[np.ndarray, pd.Series, list],
                            low: Union[np.ndarray, pd.Series, list],
@@ -712,14 +712,15 @@ class TechnicalAnalysis:
     def emv(self, high: Union[np.ndarray, pd.Series, list],
             low: Union[np.ndarray, pd.Series, list],
             volume: Union[np.ndarray, pd.Series, list],
-            scale: float = 1000000) -> np.ndarray:
-        """Ease of Movement"""
-        return self._emv.calculate(high, low, volume, scale)
+            length: int = 14, divisor: int = 10000) -> Union[np.ndarray, pd.Series]:
+        """Ease of Movement - matches TradingView exactly"""
+        return self._emv.calculate(high, low, volume, length, divisor)
     
     def force_index(self, close: Union[np.ndarray, pd.Series, list],
-                    volume: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
-        """Force Index"""
-        return self._fi.calculate(close, volume)
+                    volume: Union[np.ndarray, pd.Series, list],
+                    length: int = 13) -> Union[np.ndarray, pd.Series]:
+        """Elder Force Index - matches TradingView exactly"""
+        return self._fi.calculate(close, volume, length)
     
     def nvi(self, close: Union[np.ndarray, pd.Series, list],
             volume: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
@@ -739,6 +740,38 @@ class TechnicalAnalysis:
     def vroc(self, volume: Union[np.ndarray, pd.Series, list], period: int = 25) -> np.ndarray:
         """Volume Rate of Change"""
         return self._vroc.calculate(volume, period)
+    
+    def kvo(self, high: Union[np.ndarray, pd.Series, list],
+            low: Union[np.ndarray, pd.Series, list],
+            close: Union[np.ndarray, pd.Series, list],
+            volume: Union[np.ndarray, pd.Series, list],
+            trig_len: int = 13, fast_x: int = 34, slow_x: int = 55) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Klinger Volume Oscillator - matches TradingView exactly
+        
+        Parameters:
+        -----------
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        volume : Union[np.ndarray, pd.Series, list]
+            Volume data
+        trig_len : int, default=13
+            Trigger line EMA period (TradingView: TrigLen)
+        fast_x : int, default=34
+            Fast EMA period (TradingView: FastX)
+        slow_x : int, default=55
+            Slow EMA period (TradingView: SlowX)
+            
+        Returns:
+        --------
+        Tuple[np.ndarray, np.ndarray]
+            (kvo, trigger) values
+        """
+        return self._klinger_vo.calculate(high, low, close, volume, trig_len, fast_x, slow_x)
     
     # =================== OSCILLATORS ===================
     
@@ -785,13 +818,14 @@ class TechnicalAnalysis:
         """Price Oscillator"""
         return self._po.calculate(data, fast_period, slow_period, ma_type)
     
-    def dpo(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> np.ndarray:
-        """Detrended Price Oscillator"""
-        return self._dpo.calculate(data, period)
+    def dpo(self, data: Union[np.ndarray, pd.Series, list], 
+           period: int = 21, is_centered: bool = False) -> Union[np.ndarray, pd.Series]:
+        """Detrended Price Oscillator - matches TradingView exactly"""
+        return self._dpo.calculate(data, period, is_centered)
     
     def aroon_oscillator(self, high: Union[np.ndarray, pd.Series, list],
                         low: Union[np.ndarray, pd.Series, list],
-                        period: int = 25) -> np.ndarray:
+                        period: int = 14) -> np.ndarray:
         """Aroon Oscillator"""
         return self._aroonosc.calculate(high, low, period)
     
@@ -801,9 +835,10 @@ class TechnicalAnalysis:
         """Linear Regression"""
         return self._linearreg.calculate(data, period)
     
-    def lrslope(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
-        """Linear Regression Slope"""
-        return self._linearreg_slope.calculate(data, period)
+    def lrslope(self, data: Union[np.ndarray, pd.Series, list], 
+               period: int = 100, interval: int = 1) -> np.ndarray:
+        """Linear Regression Slope - matches TradingView exactly"""
+        return self._linearreg_slope.calculate(data, period, interval)
     
     def correlation(self, data1: Union[np.ndarray, pd.Series, list],
                    data2: Union[np.ndarray, pd.Series, list],
@@ -874,16 +909,18 @@ class TechnicalAnalysis:
         """Parabolic SAR (values only)"""
         return self._psar.calculate(high, low, acceleration, maximum)
     
-    def ht(self, data: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
-        """Hilbert Transform Trendline"""
-        return self._ht_trendline.calculate(data)
+    def ht(self, close: Union[np.ndarray, pd.Series, list],
+           high: Union[np.ndarray, pd.Series, list],
+           low: Union[np.ndarray, pd.Series, list]) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series, pd.Series]]:
+        """Hilbert Sine Wave Support and Resistance - matches TradingView exactly"""
+        return self._ht_trendline.calculate(close, high, low)
     
     def ckstop(self, high: Union[np.ndarray, pd.Series, list],
               low: Union[np.ndarray, pd.Series, list],
               close: Union[np.ndarray, pd.Series, list],
-              period: int = 10, atr_multiplier: float = 1.0) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
-        """Chande Kroll Stop"""
-        return self._chande_kroll_stop.calculate(high, low, close, period, atr_multiplier)
+              p: int = 10, x: float = 1.0, q: int = 9) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """Chande Kroll Stop - matches TradingView exactly"""
+        return self._chande_kroll_stop.calculate(high, low, close, p, x, q)
     
     # =================== NEW MOMENTUM INDICATORS ===================
     
@@ -901,26 +938,19 @@ class TechnicalAnalysis:
         """Elder Ray Index (Bull/Bear Power)"""
         return self._elder_ray.calculate(high, low, close, period)
     
-    def fisher(self, data: Union[np.ndarray, pd.Series, list],
-              period: int = 10) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
-        """Fisher Transform"""
-        return self._fisher_transform.calculate(data, period)
+    def fisher(self, high: Union[np.ndarray, pd.Series, list],
+              low: Union[np.ndarray, pd.Series, list],
+              length: int = 9) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+        """Fisher Transform - matches TradingView exactly"""
+        return self._fisher_transform.calculate(high, low, length)
     
     def crsi(self, data: Union[np.ndarray, pd.Series, list],
-            rsi_period: int = 3, streak_period: int = 2, 
-            roc_period: int = 100) -> Union[np.ndarray, pd.Series]:
-        """Connors RSI"""
-        return self._connors_rsi.calculate(data, rsi_period, streak_period, roc_period)
+            lenrsi: int = 3, lenupdown: int = 2, 
+            lenroc: int = 100) -> Union[np.ndarray, pd.Series]:
+        """Connors RSI - matches TradingView exactly"""
+        return self._connors_rsi.calculate(data, lenrsi, lenupdown, lenroc)
     
     # =================== NEW VOLUME INDICATORS ===================
-    
-    def kvo(self, high: Union[np.ndarray, pd.Series, list],
-           low: Union[np.ndarray, pd.Series, list],
-           close: Union[np.ndarray, pd.Series, list],
-           volume: Union[np.ndarray, pd.Series, list],
-           fast_period: int = 34, slow_period: int = 55) -> Union[np.ndarray, pd.Series]:
-        """Klinger Volume Oscillator"""
-        return self._klinger_vo.calculate(high, low, close, volume, fast_period, slow_period)
     
     def pvt(self, close: Union[np.ndarray, pd.Series, list],
            volume: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
@@ -978,9 +1008,9 @@ class TechnicalAnalysis:
         """Random Walk Index (alias for random_walk_index)"""
         return self._random_walk_index.calculate(high, low, close, period) if hasattr(self, '_random_walk_index') else None
         
-    def fractals(self, high, low):
-        """Williams Fractals (alias for williams_fractals)"""  
-        return self._williams_fractals.calculate(high, low) if hasattr(self, '_williams_fractals') else None
+    def fractals(self, high, low, periods=2):
+        """Williams Fractals (alias for williams_fractals) - matches TradingView exactly"""  
+        return self._williams_fractals.calculate(high, low, periods) if hasattr(self, '_williams_fractals') else None
         
     def trima(self, data, period=20):
         """Triangular Moving Average (alias)"""
@@ -1002,17 +1032,17 @@ class TechnicalAnalysis:
         """Chandelier Exit (alias)"""
         return self._chandelier_exit.calculate(high, low, close, period, multiplier) if hasattr(self, '_chandelier_exit') else None
         
-    def hv(self, data, period=20, annualize=True):
-        """Historical Volatility (alias)"""
-        return self._hv.calculate(data, period, annualize) if hasattr(self, '_hv') else None
+    def hv(self, close, length=10, annual=365, per=1):
+        """Historical Volatility (alias) - matches TradingView exactly"""
+        return self._hv.calculate(close, length, annual, per) if hasattr(self, '_hv') else None
         
     def chop(self, high, low, close, period=14):
         """Choppiness Index (alias)"""
         return self._chop.calculate(high, low, close, period) if hasattr(self, '_chop') else None
         
-    def kst(self, data, roc1=10, roc2=15, roc3=20, roc4=30, sma1=10, sma2=10, sma3=10, sma4=15, signal_period=9):
-        """Know Sure Thing (alias)"""
-        return self._kst.calculate(data, roc1, roc2, roc3, roc4, sma1, sma2, sma3, sma4, signal_period) if hasattr(self, '_kst') else None
+    def kst(self, data, roclen1=10, roclen2=15, roclen3=20, roclen4=30, smalen1=10, smalen2=10, smalen3=10, smalen4=15, siglen=9):
+        """Know Sure Thing - matches TradingView exactly"""
+        return self._kst.calculate(data, roclen1, roclen2, roclen3, roclen4, smalen1, smalen2, smalen3, smalen4, siglen) if hasattr(self, '_kst') else None
         
     def tsi(self, data, long_period=25, short_period=13, signal_period=13):
         """True Strength Index (alias)"""
@@ -1026,9 +1056,9 @@ class TechnicalAnalysis:
         """Schaff Trend Cycle (alias)"""
         return self._stc.calculate(data, fast_period, slow_period, cycle_period, d1_period, d2_period) if hasattr(self, '_stc') else None
         
-    def gator_oscillator(self, data, jaw_period=13, teeth_period=8, lips_period=5):
-        """Gator Oscillator (alias)"""
-        return self._gator_oscillator.calculate(data, jaw_period, teeth_period, lips_period) if hasattr(self, '_gator_oscillator') else None
+    def gator_oscillator(self, high, low, jaw_period=13, teeth_period=8, lips_period=5):
+        """Gator Oscillator (alias) - matches TradingView exactly"""
+        return self._gator_oscillator.calculate(high, low, jaw_period, teeth_period, lips_period) if hasattr(self, '_gator_oscillator') else None
         
     def zigzag(self, high, low, close, deviation=5.0):
         """Zig Zag (alias)"""

@@ -421,14 +421,15 @@ class CMF(BaseIndicator):
 
 class EMV(BaseIndicator):
     """
-    Ease of Movement
+    Ease of Movement - matches TradingView exactly
     
     EMV relates price change to volume and is particularly useful 
-    for assessing the strength of a trend.
+    for assessing the strength of a trend. TradingView version includes
+    automatic SMA smoothing.
     
-    Formula: EMV = Distance Moved / Box Ratio
-    Where: Distance Moved = (High + Low)/2 - (Previous High + Previous Low)/2
-           Box Ratio = Volume / (High - Low)
+    TradingView Formula: EMV = SMA(div * change(hl2) * (high - low) / volume, length)
+    Where: hl2 = (high + low) / 2
+           change(hl2) = current hl2 - previous hl2
     """
     
     def __init__(self):
@@ -436,33 +437,49 @@ class EMV(BaseIndicator):
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_emv(high: np.ndarray, low: np.ndarray, volume: np.ndarray,
-                      scale: float) -> np.ndarray:
-        """Numba optimized EMV calculation"""
+    def _calculate_sma(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate SMA"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            result[i] = np.mean(data[i - period + 1:i + 1])
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_emv_raw(high: np.ndarray, low: np.ndarray, volume: np.ndarray,
+                          divisor: float) -> np.ndarray:
+        """Calculate raw EMV values before smoothing - matches TradingView formula"""
         n = len(high)
         result = np.full(n, np.nan)
         
         for i in range(1, n):
-            # Distance moved
-            hl_avg = (high[i] + low[i]) / 2
-            prev_hl_avg = (high[i-1] + low[i-1]) / 2
-            distance = hl_avg - prev_hl_avg
+            # Calculate hl2 (typical price)
+            hl2_current = (high[i] + low[i]) / 2
+            hl2_previous = (high[i-1] + low[i-1]) / 2
             
-            # Box ratio
-            if high[i] != low[i] and volume[i] > 0:
-                box_ratio = volume[i] / (high[i] - low[i])
-                result[i] = (distance / box_ratio) * scale
+            # Change in hl2 (ta.change(hl2) in TradingView)
+            change_hl2 = hl2_current - hl2_previous
+            
+            # High - Low range
+            high_low_range = high[i] - low[i]
+            
+            # TradingView formula: div * change(hl2) * (high - low) / volume
+            if volume[i] > 0 and high_low_range > 0:
+                result[i] = divisor * change_hl2 * high_low_range / volume[i]
             else:
-                result[i] = 0
+                result[i] = 0.0
         
         return result
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  volume: Union[np.ndarray, pd.Series, list],
-                 scale: float = 1000000) -> Union[np.ndarray, pd.Series]:
+                 length: int = 14, divisor: int = 10000) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate Ease of Movement
+        Calculate Ease of Movement - matches TradingView exactly
         
         Parameters:
         -----------
@@ -472,8 +489,10 @@ class EMV(BaseIndicator):
             Low prices
         volume : Union[np.ndarray, pd.Series, list]
             Volume data
-        scale : float, default=1000000
-            Scale factor for EMV values
+        length : int, default=14
+            Period for SMA smoothing (TradingView default)
+        divisor : int, default=10000
+            Divisor for scaling EMV values (TradingView default)
             
         Returns:
         --------
@@ -485,41 +504,80 @@ class EMV(BaseIndicator):
         volume_data, _, _ = self.validate_input(volume)
         
         high_data, low_data, volume_data = self.align_arrays(high_data, low_data, volume_data)
+        self.validate_period(length, len(high_data))
         
-        result = self._calculate_emv(high_data, low_data, volume_data, scale)
-        return self.format_output(result, input_type, index)
+        if divisor <= 0:
+            raise ValueError(f"Divisor must be positive, got {divisor}")
+        
+        # Calculate raw EMV values
+        raw_emv = self._calculate_emv_raw(high_data, low_data, volume_data, float(divisor))
+        
+        # Apply SMA smoothing (TradingView always smooths)
+        smoothed_emv = self._calculate_sma(raw_emv, length)
+        
+        return self.format_output(smoothed_emv, input_type, index)
 
 
 class FI(BaseIndicator):
     """
-    Force Index
+    Elder Force Index - matches TradingView exactly
     
-    Force Index combines price and volume to assess the power used to move 
-    the price of an asset.
+    The Elder Force Index (EFI) combines price and volume to assess the power 
+    used to move the price of an asset. TradingView version applies EMA smoothing
+    to reduce noise.
     
-    Formula: FI = Volume × (Close - Previous Close)
+    TradingView Formula: EFI = EMA(volume * change(close), length)
+    Where: change(close) = close - close[1]
     """
     
     def __init__(self):
-        super().__init__("FI")
+        super().__init__("Elder Force Index")
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_fi(close: np.ndarray, volume: np.ndarray) -> np.ndarray:
-        """Numba optimized Force Index calculation"""
+    def _calculate_ema(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate EMA"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        alpha = 2.0 / (period + 1)
+        
+        # Find first valid (non-NaN) value
+        first_valid = -1
+        for i in range(n):
+            if not np.isnan(data[i]):
+                first_valid = i
+                result[i] = data[i]
+                break
+        
+        if first_valid == -1:
+            return result
+        
+        # Calculate EMA
+        for i in range(first_valid + 1, n):
+            if not np.isnan(data[i]):
+                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_raw_fi(close: np.ndarray, volume: np.ndarray) -> np.ndarray:
+        """Calculate raw Force Index values"""
         n = len(close)
         result = np.full(n, np.nan)
         
         for i in range(1, n):
+            # TradingView: ta.change(close) * volume
             price_change = close[i] - close[i-1]
             result[i] = volume[i] * price_change
         
         return result
     
     def calculate(self, close: Union[np.ndarray, pd.Series, list],
-                 volume: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
+                 volume: Union[np.ndarray, pd.Series, list],
+                 length: int = 13) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate Force Index
+        Calculate Elder Force Index - matches TradingView exactly
         
         Parameters:
         -----------
@@ -527,19 +585,37 @@ class FI(BaseIndicator):
             Closing prices
         volume : Union[np.ndarray, pd.Series, list]
             Volume data
+        length : int, default=13
+            Period for EMA smoothing (TradingView default)
             
         Returns:
         --------
         Union[np.ndarray, pd.Series]
-            Force Index values in the same format as input
+            Elder Force Index values in the same format as input
+            
+        Raises:
+        -------
+        ValueError
+            If no volume is provided by the data vendor (cumulative volume is zero)
         """
         close_data, input_type, index = self.validate_input(close)
         volume_data, _, _ = self.validate_input(volume)
         
         close_data, volume_data = self.align_arrays(close_data, volume_data)
+        self.validate_period(length, len(close_data))
         
-        result = self._calculate_fi(close_data, volume_data)
-        return self.format_output(result, input_type, index)
+        # TradingView volume validation: check if cumulative volume is zero
+        cumulative_volume = np.nansum(volume_data)
+        if cumulative_volume == 0:
+            raise ValueError("No volume is provided by the data vendor.")
+        
+        # Calculate raw Force Index: volume * change(close)
+        raw_fi = self._calculate_raw_fi(close_data, volume_data)
+        
+        # Apply EMA smoothing (TradingView: ta.ema(raw_fi, length))
+        smoothed_fi = self._calculate_ema(raw_fi, length)
+        
+        return self.format_output(smoothed_fi, input_type, index)
 
 
 class NVI(BaseIndicator):
@@ -770,13 +846,17 @@ class VROC(BaseIndicator):
 
 class KlingerVolumeOscillator(BaseIndicator):
     """
-    Klinger Volume Oscillator (KVO)
+    Klinger Volume Oscillator (KVO) - matches TradingView exactly
     
     The KVO is designed to predict price reversals in a market by comparing 
     volume to price movement.
     
-    Formula: KVO = EMA(VF, 34) - EMA(VF, 55)
-    Where VF = Volume Force = Volume × Trend × (dm / cm)
+    TradingView Formula:
+    xTrend = iff(hlc3 > hlc3[1], volume * 100, -volume * 100)
+    xFast = ema(xTrend, FastX)
+    xSlow = ema(xTrend, SlowX)
+    xKVO = xFast - xSlow
+    xTrigger = ema(xKVO, TrigLen)
     """
     
     def __init__(self):
@@ -784,64 +864,74 @@ class KlingerVolumeOscillator(BaseIndicator):
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_kvo(high: np.ndarray, low: np.ndarray, close: np.ndarray, volume: np.ndarray,
-                      fast_period: int, slow_period: int) -> np.ndarray:
-        """Numba optimized KVO calculation"""
+    def _calculate_kvo_tv(high: np.ndarray, low: np.ndarray, close: np.ndarray, volume: np.ndarray,
+                         trig_len: int, fast_x: int, slow_x: int) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Calculate KVO using exact TradingView logic
+        TradingView formula:
+        xTrend = iff(hlc3 > hlc3[1], volume * 100, -volume * 100)
+        xFast = ema(xTrend, FastX)
+        xSlow = ema(xTrend, SlowX)
+        xKVO = xFast - xSlow
+        xTrigger = ema(xKVO, TrigLen)
+        """
         n = len(close)
-        result = np.full(n, np.nan)
         
-        # Calculate typical price and money flow
-        tp = (high + low + close) / 3
-        money_flow = np.zeros(n)
+        # Calculate hlc3 (typical price)
+        hlc3 = (high + low + close) / 3.0
         
-        # Calculate trend
-        trend = np.zeros(n)
-        trend[0] = 1
-        
-        for i in range(1, n):
-            if tp[i] > tp[i-1]:
-                trend[i] = 1
-            elif tp[i] < tp[i-1]:
-                trend[i] = -1
-            else:
-                trend[i] = trend[i-1]
-        
-        # Calculate Volume Force
-        vf = np.zeros(n)
-        for i in range(n):
-            dm = high[i] - low[i]
-            if dm != 0:
-                cm = close[i] - close[i-1] if i > 0 else 0
-                vf[i] = volume[i] * trend[i] * (dm / (dm + abs(cm)) if (dm + abs(cm)) != 0 else 0)
-            else:
-                vf[i] = 0
-        
-        # Calculate EMAs
-        fast_ema = np.zeros(n)
-        slow_ema = np.zeros(n)
-        
-        fast_alpha = 2.0 / (fast_period + 1)
-        slow_alpha = 2.0 / (slow_period + 1)
-        
-        fast_ema[0] = vf[0]
-        slow_ema[0] = vf[0]
+        # Calculate xTrend using TradingView logic
+        # xTrend = iff(hlc3 > hlc3[1], volume * 100, -volume * 100)
+        x_trend = np.zeros(n)  # Initialize with zeros instead of NaN
+        x_trend[0] = volume[0] * 100.0  # First value assumes positive
         
         for i in range(1, n):
-            fast_ema[i] = fast_alpha * vf[i] + (1 - fast_alpha) * fast_ema[i-1]
-            slow_ema[i] = slow_alpha * vf[i] + (1 - slow_alpha) * slow_ema[i-1]
+            if hlc3[i] > hlc3[i - 1]:
+                x_trend[i] = volume[i] * 100.0
+            else:
+                x_trend[i] = -volume[i] * 100.0
         
-        # Calculate KVO
-        result = fast_ema - slow_ema
+        # Calculate EMAs using TradingView logic
+        # xFast = ema(xTrend, FastX)
+        x_fast = np.zeros(n)
+        fast_alpha = 2.0 / (fast_x + 1)
         
-        return result
+        # Initialize EMA with first value
+        x_fast[0] = x_trend[0]
+        for i in range(1, n):
+            x_fast[i] = fast_alpha * x_trend[i] + (1 - fast_alpha) * x_fast[i - 1]
+        
+        # xSlow = ema(xTrend, SlowX)
+        x_slow = np.zeros(n)
+        slow_alpha = 2.0 / (slow_x + 1)
+        
+        # Initialize EMA with first value
+        x_slow[0] = x_trend[0]
+        for i in range(1, n):
+            x_slow[i] = slow_alpha * x_trend[i] + (1 - slow_alpha) * x_slow[i - 1]
+        
+        # xKVO = xFast - xSlow
+        x_kvo = x_fast - x_slow
+        
+        
+        # xTrigger = ema(xKVO, TrigLen)
+        x_trigger = np.zeros(n)
+        trig_alpha = 2.0 / (trig_len + 1)
+        
+        # Initialize trigger EMA with first KVO value
+        x_trigger[0] = x_kvo[0]
+        for i in range(1, n):
+            x_trigger[i] = trig_alpha * x_kvo[i] + (1 - trig_alpha) * x_trigger[i - 1]
+        
+        return x_kvo, x_trigger
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
                  volume: Union[np.ndarray, pd.Series, list],
-                 fast_period: int = 34, slow_period: int = 55) -> Union[np.ndarray, pd.Series]:
+                 trig_len: int = 13, fast_x: int = 34, slow_x: int = 55) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
-        Calculate Klinger Volume Oscillator
+        Calculate Klinger Volume Oscillator - matches TradingView exactly
         
         Parameters:
         -----------
@@ -853,25 +943,35 @@ class KlingerVolumeOscillator(BaseIndicator):
             Closing prices
         volume : Union[np.ndarray, pd.Series, list]
             Volume data
-        fast_period : int, default=34
-            Fast EMA period
-        slow_period : int, default=55
-            Slow EMA period
+        trig_len : int, default=13
+            Trigger line EMA period (TradingView: TrigLen)
+        fast_x : int, default=34
+            Fast EMA period (TradingView: FastX)
+        slow_x : int, default=55
+            Slow EMA period (TradingView: SlowX)
             
         Returns:
         --------
-        Union[np.ndarray, pd.Series]
-            KVO values in the same format as input
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (kvo, trigger) in the same format as input
         """
         high_data, input_type, index = self.validate_input(high)
         low_data, _, _ = self.validate_input(low)
         close_data, _, _ = self.validate_input(close)
         volume_data, _, _ = self.validate_input(volume)
         
+        # Align arrays
         high_data, low_data, close_data, volume_data = self.align_arrays(high_data, low_data, close_data, volume_data)
         
-        result = self._calculate_kvo(high_data, low_data, close_data, volume_data, fast_period, slow_period)
-        return self.format_output(result, input_type, index)
+        # Validate parameters
+        for param, name in [(trig_len, "trig_len"), (fast_x, "fast_x"), (slow_x, "slow_x")]:
+            if param <= 0:
+                raise ValueError(f"{name} must be positive, got {param}")
+        
+        kvo, trigger = self._calculate_kvo_tv(high_data, low_data, close_data, volume_data, trig_len, fast_x, slow_x)
+        
+        results = (kvo, trigger)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class PriceVolumeTrend(BaseIndicator):
@@ -926,4 +1026,61 @@ class PriceVolumeTrend(BaseIndicator):
         close_data, volume_data = self.align_arrays(close_data, volume_data)
         
         result = self._calculate_pvt(close_data, volume_data)
+        return self.format_output(result, input_type, index)
+
+
+class RVOL(BaseIndicator):
+    """
+    Relative Volume (RVOL)
+    
+    Compares current volume to average volume over a specified period.
+    
+    Formula: RVOL = Current Volume / Average Volume
+    """
+    
+    def __init__(self):
+        super().__init__("Relative Volume")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_rvol(volume: np.ndarray, period: int) -> np.ndarray:
+        """Numba optimized RVOL calculation"""
+        n = len(volume)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            # Calculate average volume over the period
+            avg_volume = 0.0
+            for j in range(i - period + 1, i + 1):
+                avg_volume += volume[j]
+            avg_volume = avg_volume / period
+            
+            # Avoid division by zero
+            if avg_volume > 0:
+                result[i] = volume[i] / avg_volume
+            else:
+                result[i] = 1.0  # Default to 1.0 when average volume is 0
+        
+        return result
+    
+    def calculate(self, volume: Union[np.ndarray, pd.Series, list], period: int = 20) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Relative Volume
+        
+        Parameters:
+        -----------
+        volume : Union[np.ndarray, pd.Series, list]
+            Volume data
+        period : int, default=20
+            Period for average volume calculation
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            RVOL values in the same format as input
+        """
+        volume_data, input_type, index = self.validate_input(volume)
+        self.validate_period(period, len(volume_data))
+        
+        result = self._calculate_rvol(volume_data, period)
         return self.format_output(result, input_type, index)

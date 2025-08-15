@@ -458,7 +458,7 @@ def atr_sma(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -
     return sma(tr, period)
 
 
-@njit(fastmath=True, cache=True)
+# @njit(fastmath=True, cache=False)  # Disabled - jit breaks the NaN handling logic
 def ema_wilder(data: np.ndarray, period: int) -> np.ndarray:
     """
     Exponential Moving Average using Wilder's smoothing (alpha = 1/period)
@@ -476,23 +476,54 @@ def ema_wilder(data: np.ndarray, period: int) -> np.ndarray:
         Array of EMA values
     """
     n = len(data)
-    result = np.empty(n)
+    result = np.full(n, np.nan)
     alpha = 1.0 / period
     
-    # Seed initial values with NaN until enough data is available
-    result[:period-1] = np.nan
+    # Find first valid (non-NaN) value
+    first_valid_idx = -1
+    for i in range(n):
+        if not np.isnan(data[i]):
+            first_valid_idx = i
+            break
+    
+    if first_valid_idx == -1:
+        return result  # All values are NaN
+    
+    # Need at least 'period' valid values to start calculation
+    valid_count = 0
+    for i in range(first_valid_idx, n):
+        if not np.isnan(data[i]):
+            valid_count += 1
+            if valid_count >= period:
+                break
+    
+    if valid_count < period:
+        return result  # Not enough valid values
+    
+    # Find the start index where we have 'period' valid values
+    start_idx = first_valid_idx + period - 1
     
     # Calculate initial SMA as the first EMA value
     sum_val = 0.0
-    for i in range(period):
-        sum_val += data[i]
-    result[period-1] = sum_val / period
+    valid_count = 0
+    for i in range(first_valid_idx, first_valid_idx + period):
+        if not np.isnan(data[i]):
+            sum_val += data[i]
+            valid_count += 1
     
-    # Calculate EMA for remaining values
-    for i in range(period, n):
-        result[i] = alpha * data[i] + (1 - alpha) * result[i-1]
+    if valid_count == period:
+        result[start_idx] = sum_val / period
+        
+        # Calculate EMA for remaining values
+        for i in range(start_idx + 1, n):
+            if not np.isnan(data[i]):
+                result[i] = alpha * data[i] + (1 - alpha) * result[i-1]
+            else:
+                result[i] = result[i-1]  # Carry forward previous value for NaN
     
     return result
+
+
 
 
 @njit(fastmath=True, cache=True)

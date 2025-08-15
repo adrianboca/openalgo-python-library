@@ -13,48 +13,48 @@ import numpy as np
 
 ## Indicators by Category
 
-### 📈 Trend Indicators (20)
+### Trend Indicators (20)
 
-**Legend:** 🔴 Required | 🟢 Optional (with default)
-
-| Indicator | Function | Parameters | Returns | Example |
-|-----------|----------|------------|---------|---------|
-| Simple Moving Average | `ta.sma(data, period)` | 🔴 data, 🔴 period | Array | `sma_20 = ta.sma(close, 20)` |
-| Exponential Moving Average | `ta.ema(data, period)` | 🔴 data, 🔴 period | Array | `ema_50 = ta.ema(close, 50)` |
-| Weighted Moving Average | `ta.wma(data, period)` | 🔴 data, 🔴 period | Array | `wma_10 = ta.wma(close, 10)` |
-| Double EMA | `ta.dema(data, period)` | 🔴 data, 🔴 period | Array | `dema_20 = ta.dema(close, 20)` |
-| Triple EMA | `ta.tema(data, period)` | 🔴 data, 🔴 period | Array | `tema_20 = ta.tema(close, 20)` |
-| Hull Moving Average | `ta.hma(data, period)` | 🔴 data, 🔴 period | Array | `hma_20 = ta.hma(close, 20)` |
-| Volume Weighted MA | `ta.vwma(data, volume, period)` | 🔴 data, 🔴 volume, 🔴 period | Array | `vwma_20 = ta.vwma(close, volume, 20)` |
-| Arnaud Legoux MA | `ta.alma(data, period=21, offset=0.85, sigma=6.0)` | 🔴 data, 🟢 period=21, 🟢 offset=0.85, 🟢 sigma=6.0 | Array | `alma = ta.alma(close)` |
-| Kaufman Adaptive MA | `ta.kama(data, period=10, fast=2, slow=30)` | 🔴 data, 🟢 period=10, 🟢 fast=2, 🟢 slow=30 | Array | `kama = ta.kama(close)` |
-| Zero Lag EMA | `ta.zlema(data, period)` | 🔴 data, 🔴 period | Array | `zlema_20 = ta.zlema(close, 20)` |
-| T3 Moving Average | `ta.t3(data, period=21, v_factor=0.7)` | 🔴 data, 🟢 period=21, 🟢 v_factor=0.7 | Array | `t3 = ta.t3(close)` |
-| Fractal Adaptive MA | `ta.frama(data, period=16)` | 🔴 data, 🟢 period=16 | Array | `frama = ta.frama(close)` |
-| Supertrend | `ta.supertrend(high, low, close, period=10, mult=3.0)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=10, 🟢 mult=3.0 | (values, direction) | `st, dir = ta.supertrend(h, l, c)` |
-| Ichimoku Cloud | `ta.ichimoku(high, low, close, tenkan=9, kijun=26, senkou=52, disp=26)` | 🔴 high, 🔴 low, 🔴 close, 🟢 tenkan=9, 🟢 kijun=26, 🟢 senkou=52, 🟢 disp=26 | (tenkan, kijun, span_a, span_b, chikou) | `t, k, sa, sb, c = ta.ichimoku(h, l, c)` |
-| Chande Kroll Stop | `ta.ckstop(high, low, close, period=10, mult=1.0)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=10, 🟢 mult=1.0 | (long_stop, short_stop) | `ls, ss = ta.ckstop(h, l, c)` |
-| Triangular MA | `ta.trima(data, period)` | 🔴 data, 🔴 period | Array | `trima_20 = ta.trima(close, 20)` |
-| McGinley Dynamic | `ta.mcginley(data, period)` | 🔴 data, 🔴 period | Array | `md_14 = ta.mcginley(close, 14)` |
-| VIDYA | `ta.vidya(data, period=14, alpha=0.2)` | 🔴 data, 🟢 period=14, 🟢 alpha=0.2 | Array | `vidya = ta.vidya(close)` |
-| Alligator | `ta.alligator(data, jaw=13, teeth=8, lips=5)` | 🔴 data, 🟢 jaw=13, 🟢 teeth=8, 🟢 lips=5 | (jaw, teeth, lips) | `j, t, l = ta.alligator(hl2)` |
-| MA Envelopes | `ta.ma_envelopes(data, period=20, pct=2.5, ma_type="SMA")` | 🔴 data, 🟢 period=20, 🟢 pct=2.5, 🟢 ma_type | (upper, middle, lower) | `u, m, l = ta.ma_envelopes(close)` |
-
-### 💫 Momentum Indicators (9)
+**Legend:** Required | Optional (with default)
 
 | Indicator | Function | Parameters | Returns | Example |
 |-----------|----------|------------|---------|---------|
-| RSI | `ta.rsi(data, period=14)` | 🔴 data, 🟢 period=14 | Array (0-100) | `rsi = ta.rsi(close)` |
-| MACD | `ta.macd(data, fast=12, slow=26, signal=9)` | 🔴 data, 🟢 fast=12, 🟢 slow=26, 🟢 signal=9 | (macd, signal, histogram) | `m, s, h = ta.macd(close)` |
-| Stochastic | `ta.stochastic(high, low, close, k=14, d=3)` | 🔴 high, 🔴 low, 🔴 close, 🟢 k=14, 🟢 d=3 | (k%, d%) | `k, d = ta.stochastic(h, l, c)` |
-| CCI | `ta.cci(high, low, close, period=20)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=20 | Array | `cci = ta.cci(high, low, close)` |
-| Williams %R | `ta.williams_r(high, low, close, period=14)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=14 | Array (-100 to 0) | `wr = ta.williams_r(h, l, c)` |
-| Balance of Power | `ta.bop(open, high, low, close)` | 🔴 open, 🔴 high, 🔴 low, 🔴 close | Array (-1 to 1) | `bop = ta.bop(o, h, l, c)` |
-| Elder Ray Index | `ta.elderray(high, low, close, period=13)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=13 | (bull_power, bear_power) | `bull, bear = ta.elderray(h, l, c)` |
-| Fisher Transform | `ta.fisher(data, period=10)` | 🔴 data, 🟢 period=10 | (fisher, trigger) | `fish, trig = ta.fisher(close)` |
-| Connors RSI | `ta.crsi(data, rsi=3, streak=2, roc=100)` | 🔴 data, 🟢 rsi=3, 🟢 streak=2, 🟢 roc=100 | Array (0-100) | `crsi = ta.crsi(close)` |
+| Simple Moving Average | `ta.sma(data, period)` | data, period | Array | `sma_20 = ta.sma(close, 20)` |
+| Exponential Moving Average | `ta.ema(data, period)` | data, period | Array | `ema_50 = ta.ema(close, 50)` |
+| Weighted Moving Average | `ta.wma(data, period)` | data, period | Array | `wma_10 = ta.wma(close, 10)` |
+| Double EMA | `ta.dema(data, period)` | data, period | Array | `dema_20 = ta.dema(close, 20)` |
+| Triple EMA | `ta.tema(data, period)` | data, period | Array | `tema_20 = ta.tema(close, 20)` |
+| Hull Moving Average | `ta.hma(data, period)` | data, period | Array | `hma_20 = ta.hma(close, 20)` |
+| Volume Weighted MA | `ta.vwma(data, volume, period)` | data, volume, period | Array | `vwma_20 = ta.vwma(close, volume, 20)` |
+| Arnaud Legoux MA | `ta.alma(data, period=21, offset=0.85, sigma=6.0)` | data, period=21, offset=0.85, sigma=6.0 | Array | `alma = ta.alma(close)` |
+| Kaufman Adaptive MA | `ta.kama(data, period=10, fast=2, slow=30)` | data, period=10, fast=2, slow=30 | Array | `kama = ta.kama(close)` |
+| Zero Lag EMA | `ta.zlema(data, period)` | data, period | Array | `zlema_20 = ta.zlema(close, 20)` |
+| T3 Moving Average | `ta.t3(data, period=21, v_factor=0.7)` | data, period=21, v_factor=0.7 | Array | `t3 = ta.t3(close)` |
+| Fractal Adaptive MA | `ta.frama(high, low, period=26)` | high, low, period=26 | Array | `frama = ta.frama(h, l, 26)` |
+| Supertrend | `ta.supertrend(high, low, close, period=10, mult=3.0)` | high, low, close, period=10, mult=3.0 | (values, direction) | `st, dir = ta.supertrend(h, l, c)` |
+| Ichimoku Cloud | `ta.ichimoku(high, low, close, tenkan=9, kijun=26, senkou=52, disp=26)` | high, low, close, tenkan=9, kijun=26, senkou=52, disp=26 | (tenkan, kijun, span_a, span_b, chikou) | `t, k, sa, sb, c = ta.ichimoku(h, l, c)` |
+| Chande Kroll Stop | `ta.ckstop(high, low, close, p=10, x=1.0, q=9)` | high, low, close, p=10, x=1.0, q=9 | (long_stop, short_stop) | `ls, ss = ta.ckstop(h, l, c)` |
+| Triangular MA | `ta.trima(data, period)` | data, period | Array | `trima_20 = ta.trima(close, 20)` |
+| McGinley Dynamic | `ta.mcginley(data, period)` | data, period | Array | `md_14 = ta.mcginley(close, 14)` |
+| VIDYA | `ta.vidya(data, period=14, alpha=0.2)` | data, period=14, alpha=0.2 | Array | `vidya = ta.vidya(close)` |
+| Alligator | `ta.alligator(data, jaw=13, teeth=8, lips=5)` | data, jaw=13, teeth=8, lips=5 | (jaw, teeth, lips) | `j, t, l = ta.alligator(hl2)` |
+| MA Envelopes | `ta.ma_envelopes(data, period=20, pct=2.5, ma_type="SMA")` | data, period=20, pct=2.5, ma_type | (upper, middle, lower) | `u, m, l = ta.ma_envelopes(close)` |
 
-### 📊 Volatility Indicators (17)
+### Momentum Indicators (9)
+
+| Indicator | Function | Parameters | Returns | Example |
+|-----------|----------|------------|---------|---------|
+| RSI | `ta.rsi(data, period=14)` | data, period=14 | Array (0-100) | `rsi = ta.rsi(close)` |
+| MACD | `ta.macd(data, fast=12, slow=26, signal=9)` | data, fast=12, slow=26, signal=9 | (macd, signal, histogram) | `m, s, h = ta.macd(close)` |
+| Stochastic | `ta.stochastic(high, low, close, k=14, d=3)` | high, low, close, k=14, d=3 | (k%, d%) | `k, d = ta.stochastic(h, l, c)` |
+| CCI | `ta.cci(high, low, close, period=20)` | high, low, close, period=20 | Array | `cci = ta.cci(high, low, close)` |
+| Williams %R | `ta.williams_r(high, low, close, period=14)` | high, low, close, period=14 | Array (-100 to 0) | `wr = ta.williams_r(h, l, c)` |
+| Balance of Power | `ta.bop(open, high, low, close)` | open, high, low, close | Array (-1 to 1) | `bop = ta.bop(o, h, l, c)` |
+| Elder Ray Index | `ta.elderray(high, low, close, period=13)` | high, low, close, period=13 | (bull_power, bear_power) | `bull, bear = ta.elderray(h, l, c)` |
+| Fisher Transform | `ta.fisher(high, low, length=9)` | high, low, length=9 | (fisher, trigger) | `fish, trig = ta.fisher(h, l, 9)` |
+| Connors RSI | `ta.crsi(data, lenrsi=3, lenupdown=2, lenroc=100)` | data, lenrsi=3, lenupdown=2, lenroc=100 | Array (0-100) | `crsi = ta.crsi(close)` |
+
+### Volatility Indicators (17)
 
 | Indicator | Function | Parameters | Returns | Example |
 |-----------|----------|------------|---------|---------|
@@ -69,14 +69,14 @@ import numpy as np
 | Standard Deviation | `ta.stddev(data, period)` | data, period=20 | Array | `std = ta.stddev(close, 20)` |
 | True Range | `ta.true_range(high, low, close)` | high, low, close | Array | `tr = ta.true_range(h, l, c)` |
 | Mass Index | `ta.massindex(high, low, fast, slow)` | high, low, fast=9, slow=25 | Array | `mi = ta.massindex(h, l, 9, 25)` |
-| Bollinger %B | `ta.bbpercent(data, period=20, std_dev=2.0)` | 🔴 data, 🟢 period=20, 🟢 std_dev=2.0 | Array | `bb_pct_b = ta.bbpercent(close)` |
-| Bollinger Bandwidth | `ta.bbwidth(data, period=20, std_dev=2.0)` | 🔴 data, 🟢 period=20, 🟢 std_dev=2.0 | Array | `bb_bw = ta.bbwidth(close)` |
-| Chandelier Exit | `ta.chandelier_exit(h, l, c, period=22, mult=3.0)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=22, 🟢 mult=3.0 | (long_exit, short_exit) | `le, se = ta.chandelier_exit(h, l, c)` |
-| Historical Volatility | `ta.hv(data, period=20, annualize=True)` | 🔴 data, 🟢 period=20, 🟢 annualize=True | Array (%) | `hv = ta.hv(close)` |
-| Ulcer Index | `ta.ulcerindex(data, period=14)` | 🔴 data, 🟢 period=14 | Array | `ui = ta.ulcerindex(close)` |
-| STARC Bands | `ta.starc(h, l, c, ma=20, atr=15, mult=2.0)` | 🔴 high, 🔴 low, 🔴 close, 🟢 ma=20, 🟢 atr=15, 🟢 mult=2.0 | (upper, middle, lower) | `u, m, l = ta.starc(h, l, c)` |
+| Bollinger %B | `ta.bbpercent(data, period=20, std_dev=2.0)` | data, period=20, std_dev=2.0 | Array | `bb_pct_b = ta.bbpercent(close)` |
+| Bollinger Bandwidth | `ta.bbwidth(data, period=20, std_dev=2.0)` | data, period=20, std_dev=2.0 | Array | `bb_bw = ta.bbwidth(close)` |
+| Chandelier Exit | `ta.chandelier_exit(h, l, c, period=22, mult=3.0)` | high, low, close, period=22, mult=3.0 | (long_exit, short_exit) | `le, se = ta.chandelier_exit(h, l, c)` |
+| Historical Volatility | `ta.hv(close, length=10, annual=365, per=1)` | close, length=10, annual=365, per=1 | Array (%) | `hv = ta.hv(close)` |
+| Ulcer Index | `ta.ulcerindex(data, period=14)` | data, period=14 | Array | `ui = ta.ulcerindex(close)` |
+| STARC Bands | `ta.starc(h, l, c, ma=20, atr=15, mult=2.0)` | high, low, close, ma=20, atr=15, mult=2.0 | (upper, middle, lower) | `u, m, l = ta.starc(h, l, c)` |
 
-### 📉 Volume Indicators (13)
+### Volume Indicators (13)
 
 | Indicator | Function | Parameters | Returns | Example |
 |-----------|----------|------------|---------|---------|
@@ -85,16 +85,16 @@ import numpy as np
 | MFI | `ta.mfi(h, l, c, v, period)` | high, low, close, volume, period=14 | Array (0-100) | `mfi = ta.mfi(h, l, c, v, 14)` |
 | A/D Line | `ta.adl(high, low, close, volume)` | high, low, close, volume | Array | `adl = ta.adl(h, l, c, v)` |
 | Chaikin Money Flow | `ta.cmf(h, l, c, v, period)` | high, low, close, volume, period=20 | Array | `cmf = ta.cmf(h, l, c, v, 20)` |
-| Ease of Movement | `ta.emv(high, low, volume, scale)` | high, low, volume, scale=1000000 | Array | `emv = ta.emv(h, l, v, 1000000)` |
-| Force Index | `ta.force_index(close, volume)` | close, volume | Array | `fi = ta.force_index(close, volume)` |
+| Ease of Movement | `ta.emv(high, low, volume, length, divisor)` | high, low, volume, length=14, divisor=10000 | Array | `emv = ta.emv(h, l, v, 14, 10000)` |
+| Force Index | `ta.force_index(close, volume, length)` | close, volume, length=13 | Array | `fi = ta.force_index(close, volume, 13)` |
 | NVI | `ta.nvi(close, volume)` | close, volume | Array | `nvi = ta.nvi(close, volume)` |
 | PVI | `ta.pvi(close, volume)` | close, volume | Array | `pvi = ta.pvi(close, volume)` |
 | Volume Oscillator | `ta.volosc(v, fast, slow)` | volume, fast=5, slow=10 | Array (%) | `vo = ta.volosc(v, 5, 10)` |
 | Volume ROC | `ta.vroc(volume, period)` | volume, period=25 | Array (%) | `vroc = ta.vroc(volume, 25)` |
-| Klinger Volume Osc | `ta.kvo(h, l, c, v, fast=34, slow=55)` | 🔴 high, 🔴 low, 🔴 close, 🔴 volume, 🟢 fast=34, 🟢 slow=55 | Array | `kvo = ta.kvo(h, l, c, v)` |
-| Price Volume Trend | `ta.pvt(close, volume)` | 🔴 close, 🔴 volume | Array | `pvt = ta.pvt(close, volume)` |
+| Klinger Volume Osc | `ta.kvo(h, l, c, v, fast=34, slow=55)` | high, low, close, volume, fast=34, slow=55 | Array | `kvo = ta.kvo(h, l, c, v)` |
+| Price Volume Trend | `ta.pvt(close, volume)` | close, volume | Array | `pvt = ta.pvt(close, volume)` |
 
-### 🔄 Oscillators (19)
+### Oscillators (19)
 
 | Indicator | Function | Parameters | Returns | Example |
 |-----------|----------|------------|---------|---------|
@@ -106,24 +106,24 @@ import numpy as np
 | Accelerator Osc | `ta.accelerator_oscillator(h, l, period)` | high, low, period=5 | Array | `ac = ta.accelerator_oscillator(h, l)` |
 | PPO | `ta.ppo(data, fast, slow, signal)` | data, fast=12, slow=26, signal=9 | (ppo, signal, hist) | `p, s, h = ta.ppo(close)` |
 | Price Oscillator | `ta.po(data, fast, slow, type)` | data, fast=10, slow=20, ma_type="SMA" | Array | `po = ta.po(close)` |
-| DPO | `ta.dpo(data, period)` | data, period=20 | Array | `dpo = ta.dpo(close, 20)` |
+| DPO | `ta.dpo(data, period, is_centered)` | data, period=21, is_centered=False | Array | `dpo = ta.dpo(close, 21, False)` |
 | Aroon Oscillator | `ta.aroon_oscillator(high, low, period)` | high, low, period=25 | Array (-100 to 100) | `ao = ta.aroon_oscillator(h, l, 25)` |
-| Stochastic RSI | `ta.stochrsi(data, rsi=14, stoch=14, k=3, d=3)` | 🔴 data, 🟢 rsi=14, 🟢 stoch=14, 🟢 k=3, 🟢 d=3 | (k%, d%) | `k, d = ta.stochrsi(close)` |
-| Relative Vigor Index | `ta.rvi(o, h, l, c, period=10)` | 🔴 open, 🔴 high, 🔴 low, 🔴 close, 🟢 period=10 | (rvi, signal) | `rvi, sig = ta.rvi(o, h, l, c)` |
-| Chaikin Oscillator | `ta.cho(h, l, c, v, fast=3, slow=10)` | 🔴 high, 🔴 low, 🔴 close, 🔴 volume, 🟢 fast=3, 🟢 slow=10 | Array | `co = ta.cho(h, l, c, v)` |
-| Choppiness Index | `ta.chop(high, low, close, period=14)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=14 | Array (0-100) | `chop = ta.chop(h, l, c)` |
-| Know Sure Thing | `ta.kst(data, roc1=10, roc2=15, roc3=20, roc4=30, sma1=10, sma2=10, sma3=10, sma4=15, signal=9)` | 🔴 data, 🟢 ROC/SMA periods, 🟢 signal=9 | (kst, signal) | `kst, sig = ta.kst(close)` |
-| Schaff Trend Cycle | `ta.stc(data, fast=23, slow=50, cycle=10, smooth1=3, smooth2=3)` | 🔴 data, 🟢 fast=23, 🟢 slow=50, 🟢 cycle=10, 🟢 smooth1=3, 🟢 smooth2=3 | Array (0-100) | `stc = ta.stc(close)` |
-| True Strength Index | `ta.tsi(data, long=25, short=13, signal=13)` | 🔴 data, 🟢 long=25, 🟢 short=13, 🟢 signal=13 | (tsi, signal) | `tsi, sig = ta.tsi(close)` |
-| Vortex Indicator | `ta.vi(high, low, close, period=14)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=14 | (vi_plus, vi_minus) | `vip, vim = ta.vi(h, l, c)` |
-| Gator Oscillator | `ta.gator_oscillator(data, jaw=13, teeth=8, lips=5)` | 🔴 data, 🟢 jaw=13, 🟢 teeth=8, 🟢 lips=5 | (upper, lower) | `u, l = ta.gator_oscillator(hl2)` |
+| Stochastic RSI | `ta.stochrsi(data, rsi=14, stoch=14, k=3, d=3)` | data, rsi=14, stoch=14, k=3, d=3 | (k%, d%) | `k, d = ta.stochrsi(close)` |
+| Relative Vigor Index | `ta.rvi(o, h, l, c, period=10)` | open, high, low, close, period=10 | (rvi, signal) | `rvi, sig = ta.rvi(o, h, l, c)` |
+| Chaikin Oscillator | `ta.cho(h, l, c, v, fast=3, slow=10)` | high, low, close, volume, fast=3, slow=10 | Array | `co = ta.cho(h, l, c, v)` |
+| Choppiness Index | `ta.chop(high, low, close, period=14)` | high, low, close, period=14 | Array (0-100) | `chop = ta.chop(h, l, c)` |
+| Know Sure Thing | `ta.kst(data, roclen1=10, roclen2=15, roclen3=20, roclen4=30, smalen1=10, smalen2=10, smalen3=10, smalen4=15, siglen=9)` | data, ROC/SMA periods, siglen=9 | (kst, signal) | `kst, sig = ta.kst(close)` |
+| Schaff Trend Cycle | `ta.stc(data, fast=23, slow=50, cycle=10, smooth1=3, smooth2=3)` | data, fast=23, slow=50, cycle=10, smooth1=3, smooth2=3 | Array (0-100) | `stc = ta.stc(close)` |
+| True Strength Index | `ta.tsi(data, long=25, short=13, signal=13)` | data, long=25, short=13, signal=13 | (tsi, signal) | `tsi, sig = ta.tsi(close)` |
+| Vortex Indicator | `ta.vi(high, low, close, period=14)` | high, low, close, period=14 | (vi_plus, vi_minus) | `vip, vim = ta.vi(h, l, c)` |
+| Gator Oscillator | `ta.gator_oscillator(high, low, jaw=13, teeth=8, lips=5)` | high, low, jaw=13, teeth=8, lips=5 | (upper, lower) | `u, l = ta.gator_oscillator(h, l)` |
 
-### 📐 Statistical Indicators (8)
+### Statistical Indicators (8)
 
 | Indicator | Function | Parameters | Returns | Example |
 |-----------|----------|------------|---------|---------|
 | Linear Regression | `ta.linreg(data, period)` | data, period=14 | Array | `lr = ta.linreg(close, 14)` |
-| LR Slope | `ta.lrslope(data, period)` | data, period=14 | Array | `slope = ta.lrslope(close, 14)` |
+| LR Slope | `ta.lrslope(data, period, interval)` | data, period=100, interval=1 | Array | `slope = ta.lrslope(close, 100, 1)` |
 | Correlation | `ta.correlation(data1, data2, period)` | data1, data2, period=20 | Array (-1 to 1) | `corr = ta.correlation(stock1, stock2, 20)` |
 | Beta | `ta.beta(asset, market, period)` | asset, market, period=252 | Array | `beta = ta.beta(stock, market, 252)` |
 | Variance | `ta.variance(data, period)` | data, period=20 | Array | `var = ta.variance(close, 20)` |
@@ -131,7 +131,7 @@ import numpy as np
 | Median | `ta.median(data, period)` | data, period=20 | Array | `med = ta.median(close, 20)` |
 | Mode | `ta.mode(data, period, bins)` | data, period=20, bins=10 | Array | `mode = ta.mode(close, 20, 10)` |
 
-### 🔀 Hybrid Indicators (10)
+### Hybrid Indicators (10)
 
 | Indicator | Function | Parameters | Returns | Example |
 |-----------|----------|------------|---------|---------|
@@ -141,12 +141,12 @@ import numpy as np
 | Parabolic SAR | `ta.parabolic_sar(h, l, accel, max)` | high, low, accel=0.02, max=0.2 | (values, trend) | `sar, trend = ta.parabolic_sar(h, l)` |
 | DMI | `ta.dmi(h, l, c, period)` | high, low, close, period=14 | (+DI, -DI) | `plus, minus = ta.dmi(h, l, c)` |
 | PSAR | `ta.psar(high, low, accel, max)` | high, low, accel=0.02, max=0.2 | Array | `psar = ta.psar(h, l, 0.02, 0.2)` |
-| Hilbert Trendline | `ta.ht(data)` | data | Array | `ht = ta.ht(close)` |
-| Zig Zag | `ta.zigzag(high, low, close, deviation=5.0)` | 🔴 high, 🔴 low, 🔴 close, 🟢 deviation=5.0 | Array | `zz = ta.zigzag(h, l, c)` |
-| Williams Fractals | `ta.fractals(high, low)` | 🔴 high, 🔴 low | (fractal_up, fractal_down) | `fu, fd = ta.fractals(h, l)` |
-| Random Walk Index | `ta.rwi(high, low, close, period=14)` | 🔴 high, 🔴 low, 🔴 close, 🟢 period=14 | (rwi_high, rwi_low) | `rwh, rwl = ta.rwi(h, l, c)` |
+| Hilbert Transform | `ta.ht(close, high, low)` | close, high, low | (sine, leadsine, support, resistance) | `s, ls, sup, res = ta.ht(c, h, l)` |
+| Zig Zag | `ta.zigzag(high, low, close, deviation=5.0)` | high, low, close, deviation=5.0 | Array | `zz = ta.zigzag(h, l, c)` |
+| Williams Fractals | `ta.fractals(high, low, periods=2)` | high, low, periods=2 | (fractal_up, fractal_down) | `fu, fd = ta.fractals(h, l, 2)` |
+| Random Walk Index | `ta.rwi(high, low, close, period=14)` | high, low, close, period=14 | (rwi_high, rwi_low) | `rwh, rwl = ta.rwi(h, l, c)` |
 
-### 🔧 Utility Functions (7)
+### Utility Functions (7)
 
 | Function | Syntax | Parameters | Returns | Example |
 |----------|--------|------------|---------|---------|
@@ -377,7 +377,7 @@ print(f"Stop: ${result['risk']['stop_loss']:.2f}")
 print(f"Target: ${result['risk']['take_profit']:.2f}")
 ```
 
-## ✨ New Indicators Added
+## New Indicators Added
 
 ### Advanced Momentum & Oscillators
 

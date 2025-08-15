@@ -546,13 +546,16 @@ class ElderRay(BaseIndicator):
 
 class Fisher(BaseIndicator):
     """
-    Fisher Transform
+    Fisher Transform - matches TradingView exactly
     
     The Fisher Transform converts prices into a Gaussian normal distribution.
-    The Fisher Transform is used to highlight when prices have moved to an extreme.
+    TradingView version uses recursive smoothing for both value calculation 
+    and the Fisher transform itself.
     
-    Formula: Fisher = 0.5 * ln((1 + x) / (1 - x))
-    Where x = 2 * ((price - min) / (max - min)) - 1
+    TradingView Formula:
+    value := round_(.66 * ((hl2 - low_) / (high_ - low_) - .5) + .67 * nz(value[1]))
+    fish1 := .5 * math.log((1 + value) / (1 - value)) + .5 * nz(fish1[1])
+    fish2 = fish1[1]
     """
     
     def __init__(self):
@@ -560,72 +563,112 @@ class Fisher(BaseIndicator):
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_fisher(data: np.ndarray, period: int) -> Tuple[np.ndarray, np.ndarray]:
-        """Numba optimized Fisher Transform calculation"""
-        n = len(data)
-        fisher = np.full(n, np.nan)
-        trigger = np.full(n, np.nan)
-        
-        for i in range(period - 1, n):
-            # Get window data
-            window = data[i - period + 1:i + 1]
-            min_val = np.min(window)
-            max_val = np.max(window)
-            
-            if max_val != min_val:
-                # Normalize to -1 to 1
-                normalized = 2 * ((data[i] - min_val) / (max_val - min_val)) - 1
-                
-                # Constrain to avoid division by zero
-                normalized = max(-0.9999, min(0.9999, normalized))
-                
-                # Calculate Fisher Transform
-                fisher[i] = 0.5 * np.log((1 + normalized) / (1 - normalized))
-            else:
-                fisher[i] = 0.0
-            
-            # Calculate trigger (previous Fisher value)
-            if i > 0:
-                trigger[i] = fisher[i - 1] if not np.isnan(fisher[i - 1]) else 0.0
-        
-        return fisher, trigger
+    def _round_value(val: float) -> float:
+        """TradingView round_ function: constrain value to avoid log division issues"""
+        if val > 0.99:
+            return 0.999
+        elif val < -0.99:
+            return -0.999
+        else:
+            return val
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 period: int = 10) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_fisher_tv(data: np.ndarray, length: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Calculate Fisher Transform - matches TradingView exactly"""
+        n = len(data)
+        fish1 = np.full(n, np.nan)
+        fish2 = np.full(n, np.nan)
+        
+        # Initialize recursive variables
+        value = 0.0
+        fish1_prev = 0.0
+        
+        for i in range(length - 1, n):
+            # Calculate highest and lowest over length period
+            # TradingView: high_ = ta.highest(hl2, len), low_ = ta.lowest(hl2, len)
+            window_start = i - length + 1
+            window = data[window_start:i + 1]
+            high_ = np.max(window)
+            low_ = np.min(window)
+            
+            if high_ != low_:
+                # TradingView: value := round_(.66 * ((hl2 - low_) / (high_ - low_) - .5) + .67 * nz(value[1]))
+                normalized = (data[i] - low_) / (high_ - low_) - 0.5
+                new_value = 0.66 * normalized + 0.67 * value
+                
+                # Apply round_ function inline (TradingView constraint)
+                if new_value > 0.99:
+                    value = 0.999
+                elif new_value < -0.99:
+                    value = -0.999
+                else:
+                    value = new_value
+                
+                # TradingView: fish1 := .5 * math.log((1 + value) / (1 - value)) + .5 * nz(fish1[1])
+                log_term = 0.5 * np.log((1 + value) / (1 - value))
+                fish1[i] = log_term + 0.5 * fish1_prev
+                
+                # Update previous value for next iteration
+                fish1_prev = fish1[i]
+            else:
+                # Handle case where high == low
+                fish1[i] = fish1_prev
+            
+            # TradingView: fish2 = fish1[1] (previous Fisher value)
+            if i > length - 1:
+                fish2[i] = fish1[i - 1]
+            else:
+                fish2[i] = 0.0
+        
+        return fish1, fish2
+    
+    def calculate(self, high: Union[np.ndarray, pd.Series, list],
+                 low: Union[np.ndarray, pd.Series, list],
+                 length: int = 9) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
-        Calculate Fisher Transform
+        Calculate Fisher Transform - matches TradingView exactly
         
         Parameters:
         -----------
-        data : Union[np.ndarray, pd.Series, list]
-            Price data (typically (high + low) / 2)
-        period : int, default=10
-            Period for min/max calculation
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices  
+        length : int, default=9
+            Length for highest/lowest calculation (TradingView default)
             
         Returns:
         --------
         Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
             (fisher, trigger) in the same format as input
         """
-        validated_data, input_type, index = self.validate_input(data)
-        self.validate_period(period, len(validated_data))
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
         
-        fisher, trigger = self._calculate_fisher(validated_data, period)
+        high_data, low_data = self.align_arrays(high_data, low_data)
+        self.validate_period(length, len(high_data))
         
-        results = (fisher, trigger)
+        # Calculate HL2 (typical price) as TradingView uses
+        hl2 = (high_data + low_data) / 2.0
+        
+        fish1, fish2 = self._calculate_fisher_tv(hl2, length)
+        
+        results = (fish1, fish2)
         return self.format_multiple_outputs(results, input_type, index)
 
 
 class CRSI(BaseIndicator):
     """
-    Connors RSI (CRSI)
+    Connors RSI (CRSI) - matches TradingView exactly
     
     Connors RSI is a composite momentum oscillator consisting of three components:
-    1. RSI of price
-    2. RSI of streak (consecutive up/down days)
-    3. Percent rank of rate of change
+    1. RSI of price (ta.rsi(src, lenrsi))
+    2. RSI of updown streak (ta.rsi(updown(src), lenupdown))
+    3. Percent rank of 1-period ROC (ta.percentrank(ta.roc(src, 1), lenroc))
     
-    Formula: CRSI = (RSI(Close, 3) + RSI(Streak, 2) + ROC(Close, 100)) / 3
+    Formula: CRSI = math.avg(rsi, updownrsi, percentrank)
+    Default parameters: lenrsi=3, lenupdown=2, lenroc=100
     """
     
     def __init__(self):
@@ -671,24 +714,29 @@ class CRSI(BaseIndicator):
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_streak(data: np.ndarray) -> np.ndarray:
-        """Calculate streak of consecutive up/down days"""
+    def _calculate_updown_streak(data: np.ndarray) -> np.ndarray:
+        """Calculate updown streak - matches TradingView Pine Script logic"""
         n = len(data)
         streak = np.zeros(n)
         
         for i in range(1, n):
-            if data[i] > data[i-1]:
-                if streak[i-1] > 0:
-                    streak[i] = streak[i-1] + 1
+            is_equal = data[i] == data[i-1]
+            is_growing = data[i] > data[i-1]
+            
+            if is_equal:
+                streak[i] = 0.0
+            elif is_growing:
+                # Growing: if previous was <= 0, start at 1, else increment
+                if streak[i-1] <= 0:
+                    streak[i] = 1.0
                 else:
-                    streak[i] = 1
-            elif data[i] < data[i-1]:
-                if streak[i-1] < 0:
-                    streak[i] = streak[i-1] - 1
-                else:
-                    streak[i] = -1
+                    streak[i] = streak[i-1] + 1.0
             else:
-                streak[i] = 0
+                # Declining: if previous was >= 0, start at -1, else decrement
+                if streak[i-1] >= 0:
+                    streak[i] = -1.0
+                else:
+                    streak[i] = streak[i-1] - 1.0
         
         return streak
     
@@ -713,21 +761,21 @@ class CRSI(BaseIndicator):
         return result
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 rsi_period: int = 3, streak_period: int = 2, 
-                 roc_period: int = 100) -> Union[np.ndarray, pd.Series]:
+                 lenrsi: int = 3, lenupdown: int = 2, 
+                 lenroc: int = 100) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate Connors RSI
+        Calculate Connors RSI - matches TradingView exactly
         
         Parameters:
         -----------
         data : Union[np.ndarray, pd.Series, list]
             Price data (typically closing prices)
-        rsi_period : int, default=3
-            Period for price RSI
-        streak_period : int, default=2
-            Period for streak RSI
-        roc_period : int, default=100
-            Period for ROC percent rank
+        lenrsi : int, default=3
+            RSI Length (period for price RSI)
+        lenupdown : int, default=2
+            UpDown Length (period for streak RSI)
+        lenroc : int, default=100
+            ROC Length (period for ROC percent rank)
             
         Returns:
         --------
@@ -735,26 +783,29 @@ class CRSI(BaseIndicator):
             Connors RSI values in the same format as input
         """
         validated_data, input_type, index = self.validate_input(data)
-        self.validate_period(max(rsi_period, streak_period, roc_period), len(validated_data))
+        self.validate_period(max(lenrsi, lenupdown, lenroc), len(validated_data))
         
-        # Calculate components
-        price_rsi = self._calculate_rsi(validated_data, rsi_period)
+        # Component 1: RSI of price (ta.rsi(src, lenrsi))
+        price_rsi = self._calculate_rsi(validated_data, lenrsi)
         
-        streak = self._calculate_streak(validated_data)
-        streak_rsi = self._calculate_rsi(streak, streak_period)
+        # Component 2: RSI of updown streak (ta.rsi(updown(src), lenupdown))
+        updown_streak = self._calculate_updown_streak(validated_data)
+        streak_rsi = self._calculate_rsi(updown_streak, lenupdown)
         
-        # Calculate ROC
-        roc = np.full_like(validated_data, np.nan)
-        for i in range(roc_period, len(validated_data)):
-            if validated_data[i - roc_period] != 0:
-                roc[i] = ((validated_data[i] - validated_data[i - roc_period]) / validated_data[i - roc_period]) * 100
+        # Component 3: Percent rank of 1-period ROC (ta.percentrank(ta.roc(src, 1), lenroc))
+        # TradingView: ta.roc(src, 1) calculates 1-period rate of change
+        roc_1period = np.full_like(validated_data, np.nan)
+        for i in range(1, len(validated_data)):
+            if validated_data[i - 1] != 0:
+                roc_1period[i] = ((validated_data[i] - validated_data[i - 1]) / validated_data[i - 1]) * 100
         
-        roc_percentrank = self._calculate_percent_rank(roc, roc_period)
+        # Then calculate percent rank of this ROC over lenroc period
+        roc_percentrank = self._calculate_percent_rank(roc_1period, lenroc)
         
-        # Calculate Connors RSI
+        # Calculate Connors RSI: math.avg(rsi, updownrsi, percentrank)
         crsi = np.full_like(validated_data, np.nan)
         for i in range(len(validated_data)):
             if not np.isnan(price_rsi[i]) and not np.isnan(streak_rsi[i]) and not np.isnan(roc_percentrank[i]):
-                crsi[i] = (price_rsi[i] + streak_rsi[i] + roc_percentrank[i]) / 3
+                crsi[i] = (price_rsi[i] + streak_rsi[i] + roc_percentrank[i]) / 3.0
         
         return self.format_output(crsi, input_type, index)

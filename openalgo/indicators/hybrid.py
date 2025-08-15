@@ -5,7 +5,7 @@ OpenAlgo Technical Indicators - Hybrid and Advanced Indicators
 
 import numpy as np
 import pandas as pd
-from numba import jit
+from openalgo.numba_shim import jit
 from typing import Union, Tuple, Optional
 from .base import BaseIndicator
 from .utils import true_range, ema_wilder
@@ -24,7 +24,7 @@ class ADX(BaseIndicator):
         super().__init__("ADX")
     
     @staticmethod
-    @jit(nopython=True, cache=True)
+    # @jit(nopython=True, cache=False)  # Disabled - jit breaks the NaN handling logic  
     def _calculate_adx_optimized(high: np.ndarray, low: np.ndarray, close: np.ndarray,
                       period: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Optimized ADX calculation using consolidated utilities"""
@@ -127,40 +127,54 @@ class Aroon(BaseIndicator):
         super().__init__("Aroon")
     
     @staticmethod
-    @jit(nopython=True)
+    # @jit(nopython=True)  # Disabled for consistency with ADX fix
     def _calculate_aroon(high: np.ndarray, low: np.ndarray, period: int) -> Tuple[np.ndarray, np.ndarray]:
-        """Numba optimized Aroon calculation"""
+        """
+        Aroon calculation matching TradingView logic
+        
+        TradingView formula:
+        upper = 100 * (ta.highestbars(high, length + 1) + length)/length
+        lower = 100 * (ta.lowestbars(low, length + 1) + length)/length
+        """
         n = len(high)
         aroon_up = np.full(n, np.nan)
         aroon_down = np.full(n, np.nan)
         
-        for i in range(period - 1, n):
-            # Find highest high and lowest low positions in the window
-            high_window = high[i - period + 1:i + 1]
-            low_window = low[i - period + 1:i + 1]
+        # TradingView uses period + 1 bars for lookback
+        lookback = period + 1
+        
+        for i in range(lookback - 1, n):
+            # Find highest high and lowest low positions in the window (period + 1 bars)
+            window_start = i - lookback + 1
+            window_end = i + 1
+            high_window = high[window_start:window_end]
+            low_window = low[window_start:window_end]
             
             # Find positions of highest high and lowest low
+            # Use FIRST occurrence to match TradingView behavior
             highest_pos = 0
             lowest_pos = 0
             
             for j in range(len(high_window)):
-                if high_window[j] >= high_window[highest_pos]:
+                if high_window[j] > high_window[highest_pos]:  # Changed >= to > for first occurrence
                     highest_pos = j
-                if low_window[j] <= low_window[lowest_pos]:
+                if low_window[j] < low_window[lowest_pos]:     # Changed <= to < for first occurrence
                     lowest_pos = j
             
-            # Calculate Aroon values
-            periods_since_high = period - 1 - highest_pos
-            periods_since_low = period - 1 - lowest_pos
+            # Calculate bars since highest/lowest (0 = current bar)
+            bars_since_high = len(high_window) - 1 - highest_pos
+            bars_since_low = len(low_window) - 1 - lowest_pos
             
-            aroon_up[i] = ((period - periods_since_high) / period) * 100
-            aroon_down[i] = ((period - periods_since_low) / period) * 100
+            # TradingView formula: 100 * (ta.highestbars + period) / period
+            # ta.highestbars returns -bars_since_high, so:
+            aroon_up[i] = 100 * (period - bars_since_high) / period
+            aroon_down[i] = 100 * (period - bars_since_low) / period
         
         return aroon_up, aroon_down
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 period: int = 25) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+                 period: int = 14) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
         Calculate Aroon Indicator
         
@@ -170,7 +184,7 @@ class Aroon(BaseIndicator):
             High prices
         low : Union[np.ndarray, pd.Series, list]
             Low prices
-        period : int, default=25
+        period : int, default=14
             Period for Aroon calculation
             
         Returns:
@@ -448,50 +462,235 @@ class PSAR(BaseIndicator):
 
 class HT(BaseIndicator):
     """
-    Hilbert Transform - Instantaneous Trendline
+    Hilbert Sine Wave Support and Resistance - matches TradingView exactly
     
-    Uses Hilbert Transform to create a smoothed trendline.
+    Uses Hilbert Transform to calculate sine wave cycles and generate 
+    dynamic support and resistance levels based on market cycles.
+    
+    TradingView Script Implementation:
+    - Smoothing filter with cycle detection
+    - Phase calculation using Hilbert Transform
+    - Sine and LeadSine wave generation  
+    - Dynamic support/resistance level detection
     """
     
     def __init__(self):
-        super().__init__("HT Trendline")
+        super().__init__("Hilbert Sine Wave SR")
+    
+    pass
+
+@jit(nopython=True)
+def _percentile_nearest_rank(data: np.ndarray, window: int, percentile: float) -> float:
+    """Calculate percentile using nearest rank method"""
+    if len(data) < window:
+        return 0.0
+    
+    # Get last 'window' values, excluding NaN
+    valid_data = []
+    count = 0
+    for i in range(len(data) - 1, -1, -1):
+        if not np.isnan(data[i]) and count < window:
+            valid_data.append(data[i])
+            count += 1
+    
+    if len(valid_data) == 0:
+        return 0.0
+    
+    # Sort the data
+    for i in range(len(valid_data)):
+        for j in range(i + 1, len(valid_data)):
+            if valid_data[i] > valid_data[j]:
+                valid_data[i], valid_data[j] = valid_data[j], valid_data[i]
+    
+    # Calculate percentile rank
+    rank = (percentile / 100.0) * (len(valid_data) - 1)
+    rank_int = int(rank)
+    
+    if rank_int >= len(valid_data) - 1:
+        return valid_data[-1]
+    elif rank_int < 0:
+        return valid_data[0]
+    else:
+        return valid_data[rank_int]
+
+class HT(BaseIndicator):
+    """
+    Hilbert Sine Wave Support and Resistance - matches TradingView exactly
+    
+    Uses Hilbert Transform to calculate sine wave cycles and generate 
+    dynamic support and resistance levels based on market cycles.
+    
+    TradingView Script Implementation:
+    - Smoothing filter with cycle detection
+    - Phase calculation using Hilbert Transform
+    - Sine and LeadSine wave generation  
+    - Dynamic support/resistance level detection
+    """
+    
+    def __init__(self):
+        super().__init__("Hilbert Sine Wave SR")
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_ht_trendline(data: np.ndarray) -> np.ndarray:
-        """Simplified Hilbert Transform Trendline"""
-        n = len(data)
-        result = np.empty(n)
-        
-        # Initialize
-        for i in range(7):
-            result[i] = data[i]
-        
-        # Apply smoothing filter
-        for i in range(7, n):
-            # Simple approximation of Hilbert Transform
-            result[i] = (4 * data[i] + 3 * data[i-1] + 2 * data[i-2] + data[i-3] + 
-                        data[i-4] + data[i-5] + data[i-6]) / 13
-        
-        return result
-    
-    def calculate(self, data: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
+    def _calculate_hilbert_sine_wave(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        Calculate Hilbert Transform Trendline
+        Calculate Hilbert Sine Wave Support and Resistance - matches TradingView exactly
+        """
+        n = len(close)
+        
+        # Initialize arrays
+        smooth = np.full(n, np.nan)
+        cycle = np.full(n, np.nan)
+        q1 = np.full(n, np.nan)
+        i1 = np.full(n, np.nan)
+        delta_phase = np.full(n, np.nan)
+        inst_period = np.full(n, np.nan)
+        dc_period = np.full(n, np.nan)
+        dc_phase = np.full(n, np.nan)
+        sine = np.full(n, np.nan)
+        lead_sine = np.full(n, np.nan)
+        support_resistance = np.full(n, np.nan)
+        
+        # Constants
+        alpha = 0.07
+        
+        # Initialize first values
+        for i in range(min(7, n)):
+            smooth[i] = close[i]
+            cycle[i] = 0.0
+            inst_period[i] = 15.0
+            dc_period[i] = 15.0
+        
+        # Calculate smooth prices
+        for i in range(3, n):
+            smooth[i] = (close[i] + 2*close[i-1] + 2*close[i-2] + close[i-3]) / 6.0
+        
+        # Calculate cycle
+        for i in range(2, n):
+            cycle_val = ((1 - 0.5*alpha) * (1 - 0.5*alpha) * (smooth[i] - 2*smooth[i-1] + smooth[i-2]) + 
+                        2*(1-alpha)*cycle[i-1] - (1-alpha)*(1-alpha)*cycle[i-2])
+            cycle[i] = cycle_val
+        
+        # Calculate Q1 and I1
+        for i in range(6, n):
+            inst_period_prev = inst_period[i-1] if i > 0 else 15.0
+            q1[i] = (0.0962*cycle[i] + 0.5769*cycle[i-2] - 0.5769*cycle[i-4] - 0.0962*cycle[i-6]) * (0.5 + 0.08*inst_period_prev)
+            i1[i] = cycle[i-3]
+        
+        # Calculate Delta Phase
+        for i in range(1, n):
+            if not np.isnan(q1[i]) and not np.isnan(q1[i-1]) and q1[i] != 0 and q1[i-1] != 0:
+                delta_val = (i1[i]/q1[i] - i1[i-1]/q1[i-1]) / (1 + i1[i]*i1[i-1]/(q1[i]*q1[i-1]))
+                delta_phase[i] = max(0.1, min(1.1, delta_val))
+        
+        # Calculate MedianDelta and DC
+        value1 = 15.0
+        for i in range(5, n):
+            # Get median of last 5 delta_phase values
+            median_delta = _percentile_nearest_rank(delta_phase[:i+1], 5, 50.0)
+            
+            if median_delta == 0:
+                dc = 15.0
+            else:
+                dc = 6.28318 / median_delta + 0.5
+            
+            # InstPeriod calculation
+            inst_period[i] = 0.33*dc + 0.67*inst_period[i-1]
+            
+            # Value1 calculation  
+            value1 = 0.15*inst_period[i] + 0.85*value1
+            dc_period[i] = max(1, int(value1))
+        
+        # Calculate DCPhase, Sine, and LeadSine
+        for i in range(10, n):
+            dc_per = int(dc_period[i])
+            if dc_per > 0 and i >= dc_per:
+                real_part = 0.0
+                imag_part = 0.0
+                
+                # Calculate RealPart and ImagPart
+                for count in range(dc_per):
+                    if i - count >= 0:
+                        angle = 6.28318 * count / dc_per
+                        real_part += np.sin(angle) * cycle[i - count]
+                        imag_part += np.cos(angle) * cycle[i - count]
+                
+                # Calculate DCPhase
+                if abs(imag_part) > 0.001:
+                    dc_phase[i] = np.arctan(real_part / imag_part)
+                else:
+                    dc_phase[i] = 1.572963 * (1.0 if real_part >= 0 else -1.0)
+                
+                dc_phase[i] += 1.572963
+                if imag_part < 0:
+                    dc_phase[i] += 3.1415926
+                if dc_phase[i] > 5.49778705:
+                    dc_phase[i] -= 6.28318
+                
+                # Calculate Sine and LeadSine
+                sine[i] = np.sin(dc_phase[i])
+                lead_sine[i] = np.sin(dc_phase[i] + 0.78539815)
+        
+        # Calculate Support/Resistance levels
+        drawing_support = 1  # Start looking for support
+        curr_dot_value = close[0] if n > 0 else 0.0
+        
+        for i in range(1, n):
+            if not np.isnan(sine[i]) and not np.isnan(lead_sine[i]) and not np.isnan(dc_period[i]):
+                dc_per = int(dc_period[i])
+                lookback = max(1, dc_per // 8)
+                
+                if i >= lookback:
+                    lead_sine_past = lead_sine[i - lookback] if not np.isnan(lead_sine[i - lookback]) else 0
+                    sine_past = sine[i - lookback] if not np.isnan(sine[i - lookback]) else 0
+                    
+                    if lead_sine_past <= sine_past and drawing_support == 1:
+                        # Switch to resistance
+                        curr_dot_value = high[i] * 1.01
+                        drawing_support = 0
+                    elif lead_sine_past > sine_past and drawing_support == 0:
+                        # Switch to support
+                        curr_dot_value = low[i] * 0.99
+                        drawing_support = 1
+            
+            support_resistance[i] = curr_dot_value
+        
+        return sine, lead_sine, support_resistance, dc_phase
+    
+    def calculate(self, close: Union[np.ndarray, pd.Series, list],
+                 high: Union[np.ndarray, pd.Series, list],
+                 low: Union[np.ndarray, pd.Series, list]) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series, pd.Series]]:
+        """
+        Calculate Hilbert Sine Wave Support and Resistance - matches TradingView exactly
         
         Parameters:
         -----------
-        data : Union[np.ndarray, pd.Series, list]
-            Price data (typically closing prices)
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        high : Union[np.ndarray, pd.Series, list]
+            High prices  
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
             
         Returns:
         --------
-        Union[np.ndarray, pd.Series]
-            Trendline values in the same format as input
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series, pd.Series]]
+            (sine, lead_sine, support_resistance, dc_phase) in the same format as input
+            - sine: Sine wave values
+            - lead_sine: Leading sine wave values  
+            - support_resistance: Dynamic support/resistance levels
+            - dc_phase: Dominant cycle phase
         """
-        validated_data, input_type, index = self.validate_input(data)
-        result = self._calculate_ht_trendline(validated_data)
-        return self.format_output(result, input_type, index)
+        close_data, input_type, index = self.validate_input(close)
+        high_data, _, _ = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        
+        close_data, high_data, low_data = self.align_arrays(close_data, high_data, low_data)
+        
+        sine, lead_sine, support_resistance, dc_phase = self._calculate_hilbert_sine_wave(close_data, high_data, low_data)
+        
+        results = (sine, lead_sine, support_resistance, dc_phase)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class ZigZag(BaseIndicator):
@@ -598,42 +797,169 @@ class ZigZag(BaseIndicator):
 
 class WilliamsFractals(BaseIndicator):
     """
-    Williams Fractals
+    Williams Fractals - matches TradingView exactly
     
-    Identifies turning points (fractals) in price action.
+    Identifies turning points (fractals) in price action using the exact TradingView logic.
+    The algorithm checks for peaks and troughs over a configurable number of periods (n).
     
-    Fractal Up: High[n] > High[n-2] and High[n] > High[n-1] and High[n] > High[n+1] and High[n] > High[n+2]
-    Fractal Down: Low[n] < Low[n-2] and Low[n] < Low[n-1] and Low[n] < Low[n+1] and Low[n] < Low[n+2]
+    TradingView Logic:
+    - Checks current position against n periods before and after
+    - Handles edge cases with multiple frontier checks for future periods
+    - Default period = 2 (minimum value)
     """
     
     def __init__(self):
-        super().__init__("Fractals")
+        super().__init__("Williams Fractals")
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_fractals(high: np.ndarray, low: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Numba optimized Williams Fractals calculation"""
-        n = len(high)
-        fractal_up = np.full(n, np.nan)
-        fractal_down = np.full(n, np.nan)
+    def _calculate_fractals_tv(high: np.ndarray, low: np.ndarray, n: int) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Calculate Williams Fractals using exact TradingView logic
         
-        for i in range(2, n - 2):
-            # Check for fractal up (peak)
-            if (high[i] > high[i-1] and high[i] > high[i-2] and 
-                high[i] > high[i+1] and high[i] > high[i+2]):
-                fractal_up[i] = high[i]
+        This implements the complex TradingView algorithm that handles:
+        1. Down frontier checks (past periods)
+        2. Multiple up frontier checks (future periods with different patterns)
+        """
+        length = len(high)
+        fractal_up = np.full(length, False)
+        fractal_down = np.full(length, False)
+        
+        # Process each potential fractal position
+        for center in range(n, length - n):
+            # =================== UP FRACTAL LOGIC ===================
+            # Down frontier check: all past periods must be lower
+            upflag_down_frontier = True
+            for i in range(1, n + 1):
+                if high[center - i] >= high[center]:
+                    upflag_down_frontier = False
+                    break
             
-            # Check for fractal down (trough)
-            if (low[i] < low[i-1] and low[i] < low[i-2] and 
-                low[i] < low[i+1] and low[i] < low[i+2]):
-                fractal_down[i] = low[i]
+            if upflag_down_frontier:
+                # Up frontier checks: multiple patterns for future periods
+                upflag_up_frontier0 = True  # All future periods strictly lower
+                upflag_up_frontier1 = True  # Next period equal, rest strictly lower
+                upflag_up_frontier2 = True  # Next 2 periods equal, rest strictly lower
+                upflag_up_frontier3 = True  # Next 3 periods equal, rest strictly lower
+                upflag_up_frontier4 = True  # Next 4 periods equal, rest strictly lower
+                
+                for i in range(1, n + 1):
+                    # Pattern 0: all strictly lower
+                    if center + i < length and high[center + i] >= high[center]:
+                        upflag_up_frontier0 = False
+                    
+                    # Pattern 1: high[n+1] <= high[n] and rest strictly lower
+                    if center + 1 < length and high[center + 1] > high[center]:
+                        upflag_up_frontier1 = False
+                    if center + i + 1 < length and high[center + i + 1] >= high[center]:
+                        upflag_up_frontier1 = False
+                    
+                    # Pattern 2: high[n+1] <= high[n] and high[n+2] <= high[n] and rest strictly lower
+                    if center + 1 < length and high[center + 1] > high[center]:
+                        upflag_up_frontier2 = False
+                    if center + 2 < length and high[center + 2] > high[center]:
+                        upflag_up_frontier2 = False
+                    if center + i + 2 < length and high[center + i + 2] >= high[center]:
+                        upflag_up_frontier2 = False
+                    
+                    # Pattern 3: first 3 periods <= high[n] and rest strictly lower
+                    if center + 1 < length and high[center + 1] > high[center]:
+                        upflag_up_frontier3 = False
+                    if center + 2 < length and high[center + 2] > high[center]:
+                        upflag_up_frontier3 = False
+                    if center + 3 < length and high[center + 3] > high[center]:
+                        upflag_up_frontier3 = False
+                    if center + i + 3 < length and high[center + i + 3] >= high[center]:
+                        upflag_up_frontier3 = False
+                    
+                    # Pattern 4: first 4 periods <= high[n] and rest strictly lower
+                    if center + 1 < length and high[center + 1] > high[center]:
+                        upflag_up_frontier4 = False
+                    if center + 2 < length and high[center + 2] > high[center]:
+                        upflag_up_frontier4 = False
+                    if center + 3 < length and high[center + 3] > high[center]:
+                        upflag_up_frontier4 = False
+                    if center + 4 < length and high[center + 4] > high[center]:
+                        upflag_up_frontier4 = False
+                    if center + i + 4 < length and high[center + i + 4] >= high[center]:
+                        upflag_up_frontier4 = False
+                
+                # Combine all up frontier patterns
+                flag_up_frontier = (upflag_up_frontier0 or upflag_up_frontier1 or 
+                                  upflag_up_frontier2 or upflag_up_frontier3 or upflag_up_frontier4)
+                
+                fractal_up[center] = flag_up_frontier
+            
+            # =================== DOWN FRACTAL LOGIC ===================
+            # Down frontier check: all past periods must be higher
+            downflag_down_frontier = True
+            for i in range(1, n + 1):
+                if low[center - i] <= low[center]:
+                    downflag_down_frontier = False
+                    break
+            
+            if downflag_down_frontier:
+                # Up frontier checks: multiple patterns for future periods
+                downflag_up_frontier0 = True  # All future periods strictly higher
+                downflag_up_frontier1 = True  # Next period equal, rest strictly higher
+                downflag_up_frontier2 = True  # Next 2 periods equal, rest strictly higher
+                downflag_up_frontier3 = True  # Next 3 periods equal, rest strictly higher
+                downflag_up_frontier4 = True  # Next 4 periods equal, rest strictly higher
+                
+                for i in range(1, n + 1):
+                    # Pattern 0: all strictly higher
+                    if center + i < length and low[center + i] <= low[center]:
+                        downflag_up_frontier0 = False
+                    
+                    # Pattern 1: low[n+1] >= low[n] and rest strictly higher
+                    if center + 1 < length and low[center + 1] < low[center]:
+                        downflag_up_frontier1 = False
+                    if center + i + 1 < length and low[center + i + 1] <= low[center]:
+                        downflag_up_frontier1 = False
+                    
+                    # Pattern 2: low[n+1] >= low[n] and low[n+2] >= low[n] and rest strictly higher
+                    if center + 1 < length and low[center + 1] < low[center]:
+                        downflag_up_frontier2 = False
+                    if center + 2 < length and low[center + 2] < low[center]:
+                        downflag_up_frontier2 = False
+                    if center + i + 2 < length and low[center + i + 2] <= low[center]:
+                        downflag_up_frontier2 = False
+                    
+                    # Pattern 3: first 3 periods >= low[n] and rest strictly higher
+                    if center + 1 < length and low[center + 1] < low[center]:
+                        downflag_up_frontier3 = False
+                    if center + 2 < length and low[center + 2] < low[center]:
+                        downflag_up_frontier3 = False
+                    if center + 3 < length and low[center + 3] < low[center]:
+                        downflag_up_frontier3 = False
+                    if center + i + 3 < length and low[center + i + 3] <= low[center]:
+                        downflag_up_frontier3 = False
+                    
+                    # Pattern 4: first 4 periods >= low[n] and rest strictly higher
+                    if center + 1 < length and low[center + 1] < low[center]:
+                        downflag_up_frontier4 = False
+                    if center + 2 < length and low[center + 2] < low[center]:
+                        downflag_up_frontier4 = False
+                    if center + 3 < length and low[center + 3] < low[center]:
+                        downflag_up_frontier4 = False
+                    if center + 4 < length and low[center + 4] < low[center]:
+                        downflag_up_frontier4 = False
+                    if center + i + 4 < length and low[center + i + 4] <= low[center]:
+                        downflag_up_frontier4 = False
+                
+                # Combine all down frontier patterns
+                flag_down_frontier = (downflag_up_frontier0 or downflag_up_frontier1 or 
+                                    downflag_up_frontier2 or downflag_up_frontier3 or downflag_up_frontier4)
+                
+                fractal_down[center] = flag_down_frontier
         
         return fractal_up, fractal_down
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
-                 low: Union[np.ndarray, pd.Series, list]) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
+                 low: Union[np.ndarray, pd.Series, list],
+                 periods: int = 2) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
-        Calculate Williams Fractals
+        Calculate Williams Fractals - matches TradingView exactly
         
         Parameters:
         -----------
@@ -641,18 +967,24 @@ class WilliamsFractals(BaseIndicator):
             High prices
         low : Union[np.ndarray, pd.Series, list]
             Low prices
+        periods : int, default=2
+            Number of periods to check (minimum 2, matches TradingView default)
             
         Returns:
         --------
         Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
-            (fractal_up, fractal_down) in the same format as input
+            (fractal_up, fractal_down) boolean arrays in the same format as input
+            True indicates a fractal point, False otherwise
         """
         high_data, input_type, index = self.validate_input(high)
         low_data, _, _ = self.validate_input(low)
         
         high_data, low_data = self.align_arrays(high_data, low_data)
         
-        fractal_up, fractal_down = self._calculate_fractals(high_data, low_data)
+        if periods < 2:
+            raise ValueError(f"Periods must be at least 2, got {periods}")
+        
+        fractal_up, fractal_down = self._calculate_fractals_tv(high_data, low_data, periods)
         
         results = (fractal_up, fractal_down)
         return self.format_multiple_outputs(results, input_type, index)
