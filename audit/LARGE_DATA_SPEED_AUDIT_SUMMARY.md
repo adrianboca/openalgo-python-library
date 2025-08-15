@@ -52,14 +52,14 @@ OpenAlgo's 104 technical indicators achieved **99.0% success rate** on large-sca
 ## Top Performers
 
 ### Fastest Indicators (Warm Performance)
-1. **FLIP** - 0.40ms (Pine Script utility)
-2. **FALLING** - 0.61ms (Pine Script utility)
-3. **RISING** - 0.67ms (Pine Script utility)
-4. **CROSSOVER** - 0.67ms (Pine Script utility)
-5. **EXREM** - 0.70ms (Pine Script utility)
-6. **CROSS** - 0.71ms (Pine Script utility)
-7. **CROSSUNDER** - 0.74ms (Pine Script utility)
-8. **CHANGE** - 1.56ms (Pine Script utility)
+1. **FLIP** - 0.40ms (Utility)
+2. **FALLING** - 0.61ms (Utility)
+3. **RISING** - 0.67ms (Utility)
+4. **CROSSOVER** - 0.67ms (Utility)
+5. **EXREM** - 0.70ms (Utility)
+6. **CROSS** - 0.71ms (Utility)
+7. **CROSSUNDER** - 0.74ms (Utility)
+8. **CHANGE** - 1.56ms (Utility)
 9. **STDEV** - 3.01ms (Statistical)
 10. **ROC** - 3.39ms (Oscillator)
 
@@ -133,9 +133,9 @@ OpenAlgo's 104 technical indicators achieved **99.0% success rate** on large-sca
 - **Cold start overhead** acceptable for production use
 - **Consistent warm performance** across repeated calls
 
-### 3. Pine Script Utilities Excellence
-- **All 6 Pine Script utilities** among top 10 fastest
-- **Perfect compatibility** with TradingView standards
+### 3. Utility Functions Excellence
+- **All utility functions** among top 10 fastest
+- **Perfect compatibility** with trading standards
 - **Ultra-fast execution** (< 1ms) for trading logic
 
 ### 4. Memory Efficiency
@@ -148,6 +148,39 @@ OpenAlgo's 104 technical indicators achieved **99.0% success rate** on large-sca
 - **Institutional-grade reliability** (99% success)
 - **Scalable architecture** for high-frequency applications
 
+## Performance Issues Analysis
+
+### Indicators Taking > 1 Second (Cold Start)
+1. **VAR** - 25.46s (Statistical - needs optimization)
+2. **RSI** - 6.99s (Momentum - compilation heavy)
+3. **VI** - 5.84s (Oscillator - complex calculations)
+4. **UI** - 5.31s (Volatility - iterative processing)
+5. **AROON_OSC** - 4.34s (Oscillator - dual calculations)
+6. **AROON** - 4.28s (Hybrid - rolling window operations)
+7. **CRSI** - 3.90s (Momentum - multi-step RSI)
+8. **ADX** - 3.69s (Hybrid - directional movement)
+9. **DMI** - 3.64s (Hybrid - directional indicators)
+10. **MASSINDEX** - 2.51s (Volatility - exponential calculations)
+11. **BETA** - 2.32s (Statistical - correlation heavy)
+12. **VO** - 2.28s (Volume - volume oscillations)
+13. **TRIX** - 2.24s (Oscillator - triple smoothing)
+14. **LRS** - 1.10s (Statistical - regression slope)
+
+### Indicators Taking > 1 Second (Warm Performance)
+1. **VAR** - 24.55s (Statistical - algorithmic complexity)
+2. **VI** - 5.78s (Oscillator - vortex calculations)
+3. **UI** - 5.35s (Volatility - ulcer index)
+4. **AROON_OSC** - 4.30s (Oscillator - aroon oscillator)
+5. **AROON** - 4.22s (Hybrid - aroon up/down)
+6. **DMI** - 3.70s (Hybrid - directional movement)
+7. **ADX** - 3.67s (Hybrid - average directional)
+8. **MASSINDEX** - 2.47s (Volatility - mass index)
+9. **VO** - 2.27s (Volume - volume oscillator)
+10. **TRIX** - 2.22s (Oscillator - rate of change)
+11. **CRSI** - 1.88s (Momentum - composite RSI)
+12. **VWAP** - 1.21s (Volume - volume weighted)
+13. **BETA** - 1.02s (Statistical - market beta)
+
 ## Error Analysis
 
 **Single Error:** GATOR oscillator parameter signature issue
@@ -155,13 +188,27 @@ OpenAlgo's 104 technical indicators achieved **99.0% success rate** on large-sca
 - **Impact:** Minimal (0.98% failure rate)
 - **Resolution:** Parameter mapping correction needed
 
+## Optimization Priorities
+
+### High Priority (> 5 seconds)
+- **VAR** - Requires algorithmic optimization
+- **VI** - Vortex calculation efficiency needed
+- **UI** - Ulcer index computation review
+
+### Medium Priority (1-5 seconds)
+- **AROON/AROON_OSC** - Rolling window optimization
+- **ADX/DMI** - Directional movement efficiency
+- **MASSINDEX** - Exponential calculation review
+- **TRIX** - Triple smoothing optimization
+- **CRSI** - Multi-step RSI efficiency
+
 ## Benchmark Comparison
 
 OpenAlgo significantly outperforms industry standards:
 
 | Library | Success Rate | Avg Performance | Features |
 |---------|-------------|-----------------|----------|
-| **OpenAlgo** | **99.0%** | **< 1ms - 25s** | **104 indicators + Pine Script** |
+| **OpenAlgo** | **99.0%** | **< 1ms - 25s** | **104 indicators + Utilities** |
 | TA-Lib | ~85% | 1ms - 100ms | 158 indicators |
 | Pandas TA | ~80% | 5ms - 500ms | 130+ indicators |
 | Technical | ~75% | 10ms - 1s | 80+ indicators |
@@ -171,7 +218,7 @@ OpenAlgo significantly outperforms industry standards:
 1. **World-Class Achievement:** 99% success rate on 924K+ data points
 2. **Production Ready:** Sub-millisecond to sub-second performance
 3. **Numba Optimization:** Massive compilation speedups (331x max)
-4. **Pine Script Excellence:** Perfect TradingView compatibility
+4. **Utility Excellence:** Perfect trading logic compatibility
 5. **Institutional Grade:** Suitable for high-frequency trading
 6. **Memory Efficient:** Reasonable resource usage patterns
 7. **Industry Leading:** Outperforms all major alternatives
@@ -180,7 +227,7 @@ OpenAlgo significantly outperforms industry standards:
 
 1. **Deploy with confidence** - 99% success rate validates production readiness
 2. **Leverage warm calls** - Use compiled indicators for optimal performance  
-3. **Pine Script utilities** - Ideal for ultra-fast trading logic
+3. **Utility functions** - Ideal for ultra-fast trading logic
 4. **Fix GATOR issue** - Address parameter mapping for 100% success
 5. **Memory monitoring** - Track usage in high-frequency scenarios
 
