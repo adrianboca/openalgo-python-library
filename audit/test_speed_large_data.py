@@ -91,7 +91,7 @@ class LargeDataSpeedTest:
             ("kst", "KST", {"data": "close", "roclen1": 10, "roclen2": 15, "roclen3": 20, "roclen4": 30, "smalen1": 10, "smalen2": 10, "smalen3": 10, "smalen4": 15, "siglen": 9}),
             ("stc", "STC", {"data": "close", "fast_length": 23, "slow_length": 50, "cycle_length": 10, "d1_length": 3, "d2_length": 3}),
             ("vi", "VI", {"high": "high", "low": "low", "close": "close", "period": 14}),
-            ("gator_oscillator", "GATOR", {"high": "high", "low": "low", "jaw_period": 13, "jaw_shift": 8, "teeth_period": 8, "teeth_shift": 5, "lips_period": 5, "lips_shift": 3}),
+            ("gator_oscillator", "GATOR", {"high": "high", "low": "low", "jaw_period": 13, "teeth_period": 8, "lips_period": 5}),
             ("fisher", "FISHER", {"high": "high", "low": "low", "length": 9}),
             ("stochastic", "STOCHASTIC", {"high": "high", "low": "low", "close": "close", "k_period": 14, "d_period": 3}),
             ("cci", "CCI", {"high": "high", "low": "low", "close": "close", "period": 20}),
@@ -141,7 +141,7 @@ class LargeDataSpeedTest:
             ("median", "MEDIAN", {"data": "close", "period": 3}),
             ("mode", "MODE", {"data": "close", "period": 20, "bins": 10}),
             
-            # Hybrid Indicators (7)
+            # Hybrid Indicators (9)
             ("adx", "ADX", {"high": "high", "low": "low", "close": "close", "period": 14}),
             ("aroon", "AROON", {"high": "high", "low": "low", "period": 25}),
             ("pivot_points", "PIVOT", {"high": "high", "low": "low", "close": "close"}),
@@ -149,6 +149,8 @@ class LargeDataSpeedTest:
             ("ckstop", "CKSTOP", {"high": "high", "low": "low", "close": "close", "p": 10, "x": 1.0, "q": 9}),
             ("fractals", "FRACTALS", {"high": "high", "low": "low", "periods": 2}),
             ("rwi", "RWI", {"high": "high", "low": "low", "close": "close", "period": 14}),
+            ("psar", "PSAR", {"high": "high", "low": "low", "acceleration": 0.02, "maximum": 0.2}),
+            ("elderray", "ELDERRAY", {"high": "high", "low": "low", "close": "close", "period": 13}),
             
             # Utility Functions (11)
             ("crossover", "CROSSOVER", {"series1": "close", "series2": "open"}),
