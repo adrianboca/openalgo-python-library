@@ -17,19 +17,20 @@ from .trend import (SMA, EMA, WMA, DEMA, TEMA, Supertrend, Ichimoku, HMA, VWMA,
 from .momentum import (RSI, MACD, Stochastic, CCI, WilliamsR, BOP, 
                       ElderRay, Fisher, CRSI)
 from .volatility import (ATR, BollingerBands, Keltner, Donchian,
-                        Chaikin, NATR, RVI as VolatilityRVI, ULTOSC, STDDEV, TRANGE, MASS,
+                        Chaikin, NATR, RVI as VolatilityRVI, ULTOSC, TRANGE, MASS,
                         BBPercent, BBWidth, ChandelierExit,
                         HistoricalVolatility, UlcerIndex, STARC)
-from .volume import (OBV, VWAP, MFI, ADL, CMF, EMV, FI, NVI, PVI, VOLOSC, VROC,
+from .volume import (OBV, OBVSmoothed, VWAP, MFI, ADL, CMF, EMV, FI, NVI, PVI, VOLOSC, VROC,
                     KlingerVolumeOscillator, PriceVolumeTrend, RVOL)
-from .oscillators import (ROC, CMO, TRIX, UO, AO, AC, PPO, PO, DPO, AROONOSC,
+from .oscillators import (CMO, TRIX, UO, AO, AC, PPO, PO, DPO, AROONOSC,
                          StochRSI, RVI, CHO, CHOP, KST, TSI, VI, 
-                         GatorOscillator, STC)
-from .statistics import (LINREG, LRSLOPE, CORREL, BETA, VAR, TSF, MEDIAN, MODE)
-from .hybrid import (ADX, Aroon, PivotPoints, SAR, DMI, PSAR, HT,
-                    ZigZag, WilliamsFractals, RWI)
+                         GatorOscillator, STC, Coppock)
+from .statistics import (LINREG, LRSLOPE, CORREL, BETA, VAR, TSF, MEDIAN, MODE, MedianBands)
+from .hybrid import (ADX, Aroon, PivotPoints, SAR, DMI,
+                    WilliamsFractals, RWI)
 from .utils import (crossover, crossunder, highest, lowest, change, roc, 
-                   sma as utils_sma, ema as utils_ema, stdev, validate_input)
+                   sma as utils_sma, ema as utils_ema, stdev, validate_input,
+                   exrem, flip, valuewhen, rising, falling, cross)
 
 
 class TechnicalAnalysis:
@@ -103,7 +104,6 @@ class TechnicalAnalysis:
         self._rvi = RVI()  # Oscillator RVI (Relative Vigor Index)
         self._rvol = RVOL()  # Relative Volume
         self._ultosc = ULTOSC()
-        self._stddev = STDDEV()
         self._trange = TRANGE()
         self._mass = MASS()
         self._bbands_percent_b = BBPercent()
@@ -115,6 +115,7 @@ class TechnicalAnalysis:
         
         # Volume indicators
         self._obv = OBV()
+        self._obv_smoothed = OBVSmoothed()
         self._vwap = VWAP()
         self._mfi = MFI()
         self._adl = ADL()
@@ -129,7 +130,6 @@ class TechnicalAnalysis:
         self._pvt = PriceVolumeTrend()
         
         # Oscillators
-        self._roc = ROC()
         self._cmo = CMO()
         self._trix = TRIX()
         self._uo = UO()
@@ -148,6 +148,7 @@ class TechnicalAnalysis:
         self._vi = VI()
         self._stc = STC()
         self._gator_oscillator = GatorOscillator()
+        self._coppock = Coppock()
         
         # Statistical indicators
         self._linearreg = LINREG()
@@ -157,6 +158,7 @@ class TechnicalAnalysis:
         self._var = VAR()
         self._tsf = TSF()
         self._median = MEDIAN()
+        self._median_bands = MedianBands()
         self._mode = MODE()
         
         # Hybrid indicators
@@ -165,9 +167,6 @@ class TechnicalAnalysis:
         self._pivot_points = PivotPoints()
         self._sar = SAR()
         self._dmi = DMI()
-        self._psar = PSAR()
-        self._ht_trendline = HT()
-        self._zigzag = ZigZag()
         self._williams_fractals = WilliamsFractals()
         self._random_walk_index = RWI()
     
@@ -601,9 +600,6 @@ class TechnicalAnalysis:
         """Ultimate Oscillator"""
         return self._ultosc.calculate(high, low, close, period1, period2, period3)
     
-    def stddev(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> np.ndarray:
-        """Standard Deviation"""
-        return self._stddev.calculate(data, period)
     
     def true_range(self, high: Union[np.ndarray, pd.Series, list],
                    low: Union[np.ndarray, pd.Series, list],
@@ -613,9 +609,9 @@ class TechnicalAnalysis:
     
     def massindex(self, high: Union[np.ndarray, pd.Series, list],
                    low: Union[np.ndarray, pd.Series, list],
-                   fast_period: int = 9, slow_period: int = 25) -> np.ndarray:
-        """Mass Index"""
-        return self._mass.calculate(high, low, fast_period, slow_period)
+                   length: int = 10) -> np.ndarray:
+        """Mass Index (Pine Script v6 formula)"""
+        return self._mass.calculate(high, low, length)
     
     # =================== VOLUME INDICATORS ===================
     
@@ -638,13 +634,55 @@ class TechnicalAnalysis:
         """
         return self._obv.calculate(close, volume)
     
+    def obv_smoothed(self, close: Union[np.ndarray, pd.Series, list],
+                     volume: Union[np.ndarray, pd.Series, list],
+                     ma_type: str = "None",
+                     ma_length: int = 20,
+                     bb_length: int = 20,
+                     bb_mult: float = 2.0) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], np.ndarray]:
+        """
+        On Balance Volume with Smoothing Options (TradingView Pine Script Implementation)
+        
+        Parameters:
+        -----------
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        volume : Union[np.ndarray, pd.Series, list]
+            Volume data
+        ma_type : str, default "None"
+            Moving average type: "None", "SMA", "SMA + Bollinger Bands", "EMA", "SMMA (RMA)", "WMA", "VWMA"
+        ma_length : int, default 20
+            Moving average length
+        bb_length : int, default 20
+            Bollinger Bands length (only used for "SMA + Bollinger Bands")
+        bb_mult : float, default 2.0
+            Bollinger Bands multiplier (only used for "SMA + Bollinger Bands")
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, np.ndarray, np.ndarray], np.ndarray]
+            If ma_type is "SMA + Bollinger Bands": (obv_smoothed, bb_upper, bb_lower)
+            Otherwise: obv_smoothed
+        """
+        return self._obv_smoothed.calculate(close, volume, ma_type, ma_length, bb_length, bb_mult)
+    
     def vwap(self, high: Union[np.ndarray, pd.Series, list],
              low: Union[np.ndarray, pd.Series, list],
              close: Union[np.ndarray, pd.Series, list],
              volume: Union[np.ndarray, pd.Series, list],
-             period: int = 0) -> np.ndarray:
+             anchor: str = "Session",
+             source: str = "hlc3",
+             stdev_mult_1: float = 1.0,
+             stdev_mult_2: float = 2.0,
+             stdev_mult_3: float = 3.0,
+             percent_mult_1: float = 0.236,
+             percent_mult_2: float = 0.382,
+             percent_mult_3: float = 0.618) -> np.ndarray:
         """
-        Volume Weighted Average Price
+        Volume Weighted Average Price - TradingView Pine Script v6 Implementation
+        
+        Advanced VWAP with session-based anchoring, standard deviation and percentage bands.
+        Matches TradingView Pine Script v6 functionality exactly.
         
         Parameters:
         -----------
@@ -656,15 +694,42 @@ class TechnicalAnalysis:
             Closing prices
         volume : Union[np.ndarray, pd.Series, list]
             Volume data
-        period : int, default=0
-            Period for rolling VWAP. If 0, calculates cumulative VWAP
+        anchor : str, default="Session"
+            Session anchoring type: "Session", "Week", "Month", "Quarter", "Year", 
+            "12M", "6M", "3M", "D", "4H", "1H", "30m", "15m", "5m", "1m"
+        source : str, default="hlc3"
+            Price source: "hlc3", "hl2", "ohlc4", "close"
+        stdev_mult_1 : float, default=1.0
+            Standard deviation multiplier for first band
+        stdev_mult_2 : float, default=2.0
+            Standard deviation multiplier for second band
+        stdev_mult_3 : float, default=3.0
+            Standard deviation multiplier for third band
+        percent_mult_1 : float, default=0.236
+            Percentage multiplier for first percentage band
+        percent_mult_2 : float, default=0.382
+            Percentage multiplier for second percentage band
+        percent_mult_3 : float, default=0.618
+            Percentage multiplier for third percentage band
             
         Returns:
         --------
         np.ndarray
             Array of VWAP values
+            
+        Notes:
+        ------
+        TradingView Pine Script v6 Features:
+        - Session-based anchoring for automatic reset points
+        - Multiple price sources (hlc3, hl2, ohlc4, close)
+        - Standard deviation bands for volatility analysis
+        - Percentage bands for level analysis
+        - Volume validation and error handling
+        
+        Use calculate_with_bands() method for band calculations:
+        vwap_result = ta.vwap.calculate_with_bands(high, low, close, volume, ...)
         """
-        return self._vwap.calculate(high, low, close, volume, period)
+        return self._vwap.calculate(high, low, close, volume, source, anchor)
     
     def mfi(self, high: Union[np.ndarray, pd.Series, list],
             low: Union[np.ndarray, pd.Series, list],
@@ -724,18 +789,59 @@ class TechnicalAnalysis:
     
     def nvi(self, close: Union[np.ndarray, pd.Series, list],
             volume: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
-        """Negative Volume Index"""
+        """Negative Volume Index (Pine Script Implementation)"""
         return self._nvi.calculate(close, volume)
     
+    def nvi_with_ema(self, close: Union[np.ndarray, pd.Series, list],
+                    volume: Union[np.ndarray, pd.Series, list],
+                    ema_length: int = 255) -> Tuple[np.ndarray, np.ndarray]:
+        """Negative Volume Index with EMA (Complete Pine Script Implementation)"""
+        return self._nvi.calculate_with_ema(close, volume, ema_length)
+    
     def pvi(self, close: Union[np.ndarray, pd.Series, list],
-            volume: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
-        """Positive Volume Index"""
-        return self._pvi.calculate(close, volume)
+            volume: Union[np.ndarray, pd.Series, list],
+            initial_value: float = 100.0) -> np.ndarray:
+        """Positive Volume Index (TradingView Pine Script Implementation)"""
+        return self._pvi.calculate(close, volume, initial_value)
+    
+    def pvi_with_signal(self, close: Union[np.ndarray, pd.Series, list],
+                       volume: Union[np.ndarray, pd.Series, list],
+                       initial_value: float = 100.0,
+                       signal_type: str = "EMA",
+                       signal_length: int = 255) -> Tuple[np.ndarray, np.ndarray]:
+        """Positive Volume Index with Signal Line (Complete TradingView Pine Script Implementation)"""
+        return self._pvi.calculate_with_signal(close, volume, initial_value, signal_type, signal_length)
     
     def volosc(self, volume: Union[np.ndarray, pd.Series, list],
-                         fast_period: int = 5, slow_period: int = 10) -> np.ndarray:
-        """Volume Oscillator"""
-        return self._vo.calculate(volume, fast_period, slow_period)
+                         short_length: int = 5, long_length: int = 10,
+                         check_volume_validity: bool = True) -> np.ndarray:
+        """
+        Volume Oscillator - TradingView Pine Script v6 Implementation
+        
+        Parameters:
+        -----------
+        volume : Union[np.ndarray, pd.Series, list]
+            Volume data
+        short_length : int, default=5
+            Short EMA length (TradingView default)
+        long_length : int, default=10
+            Long EMA length (TradingView default)
+        check_volume_validity : bool, default=True
+            Check for valid volume data (TradingView style validation)
+            
+        Returns:
+        --------
+        np.ndarray
+            Volume Oscillator values
+            
+        Notes:
+        ------
+        TradingView Pine Script v6 Formula:
+        short = ta.ema(volume, shortlen)
+        long = ta.ema(volume, longlen)
+        osc = 100 * (short - long) / long
+        """
+        return self._vo.calculate(volume, short_length, long_length, check_volume_validity)
     
     def vroc(self, volume: Union[np.ndarray, pd.Series, list], period: int = 25) -> np.ndarray:
         """Volume Rate of Change"""
@@ -775,17 +881,13 @@ class TechnicalAnalysis:
     
     # =================== OSCILLATORS ===================
     
-    def roc_oscillator(self, data: Union[np.ndarray, pd.Series, list], period: int = 12) -> np.ndarray:
-        """Rate of Change"""
-        return self._roc.calculate(data, period)
-    
     def cmo(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
         """Chande Momentum Oscillator"""
         return self._cmo.calculate(data, period)
     
-    def trix(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
-        """TRIX"""
-        return self._trix.calculate(data, period)
+    def trix(self, data: Union[np.ndarray, pd.Series, list], length: int = 18) -> np.ndarray:
+        """TRIX (TradingView Pine Script v6) - triple EMA rate of change of log prices * 10000"""
+        return self._trix.calculate(data, length)
     
     def uo_oscillator(self, high: Union[np.ndarray, pd.Series, list],
                      low: Union[np.ndarray, pd.Series, list],
@@ -852,17 +954,55 @@ class TechnicalAnalysis:
         """Beta Coefficient"""
         return self._beta.calculate(asset, market, period)
     
-    def variance(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> np.ndarray:
-        """Variance"""
-        return self._var.calculate(data, period)
+    def variance(self, data: Union[np.ndarray, pd.Series, list], 
+                lookback: int = 20, mode: str = "PR", ema_period: int = 20,
+                filter_lookback: int = 20, ema_length: int = 14,
+                return_components: bool = False) -> Union[np.ndarray, tuple]:
+        """
+        Variance - TradingView Pine Script v4 Implementation
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (close prices)
+        lookback : int, default=20
+            Variance lookback period
+        mode : str, default="PR"
+            Variance mode: "LR" for Logarithmic Returns, "PR" for Price
+        ema_period : int, default=20
+            EMA period for variance smoothing
+        filter_lookback : int, default=20
+            Lookback period for variance filter (z-score calculation)  
+        ema_length : int, default=14
+            EMA length for z-score smoothing
+        return_components : bool, default=False
+            If True, returns (variance, ema_variance, zscore, ema_zscore, stdev)
+            
+        Returns:
+        --------
+        Union[np.ndarray, tuple]
+            Variance values or tuple of all components
+        """
+        return self._var.calculate(data, lookback, mode, ema_period, filter_lookback, ema_length, return_components)
     
     def tsf(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> np.ndarray:
         """Time Series Forecast"""
         return self._tsf.calculate(data, period)
     
-    def median(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> np.ndarray:
-        """Rolling Median"""
+    def median(self, data: Union[np.ndarray, pd.Series, list], period: int = 3) -> np.ndarray:
+        """Rolling Median (Pine Script v6)"""
         return self._median.calculate(data, period)
+    
+    def median_bands(self, high: Union[np.ndarray, pd.Series, list],
+                    low: Union[np.ndarray, pd.Series, list],
+                    close: Union[np.ndarray, pd.Series, list],
+                    source: Optional[Union[np.ndarray, pd.Series, list]] = None,
+                    median_length: int = 3,
+                    atr_length: int = 14,
+                    atr_mult: float = 2.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Median with Bands and EMA (Pine Script v6 Complete)"""
+        return self._median_bands.calculate_with_bands(high, low, close, source, 
+                                                       median_length, atr_length, atr_mult)
     
     def mode(self, data: Union[np.ndarray, pd.Series, list], 
              period: int = 20, bins: int = 10) -> np.ndarray:
@@ -890,12 +1030,6 @@ class TechnicalAnalysis:
         """Pivot Points (Pivot, R1, S1, R2, S2, R3, S3)"""
         return self._pivot_points.calculate(high, low, close)
     
-    def parabolic_sar(self, high: Union[np.ndarray, pd.Series, list],
-                      low: Union[np.ndarray, pd.Series, list],
-                      acceleration: float = 0.02, maximum: float = 0.2) -> Tuple[np.ndarray, np.ndarray]:
-        """Parabolic SAR (values, trend)"""
-        return self._sar.calculate(high, low, acceleration, maximum)
-    
     def dmi(self, high: Union[np.ndarray, pd.Series, list],
                             low: Union[np.ndarray, pd.Series, list],
                             close: Union[np.ndarray, pd.Series, list],
@@ -907,13 +1041,8 @@ class TechnicalAnalysis:
              low: Union[np.ndarray, pd.Series, list],
              acceleration: float = 0.02, maximum: float = 0.2) -> np.ndarray:
         """Parabolic SAR (values only)"""
-        return self._psar.calculate(high, low, acceleration, maximum)
-    
-    def ht(self, close: Union[np.ndarray, pd.Series, list],
-           high: Union[np.ndarray, pd.Series, list],
-           low: Union[np.ndarray, pd.Series, list]) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series, pd.Series]]:
-        """Hilbert Sine Wave Support and Resistance - matches TradingView exactly"""
-        return self._ht_trendline.calculate(close, high, low)
+        sar_values, trend = self._sar.calculate(high, low, acceleration, maximum)
+        return sar_values
     
     def ckstop(self, high: Union[np.ndarray, pd.Series, list],
               low: Union[np.ndarray, pd.Series, list],
@@ -954,7 +1083,21 @@ class TechnicalAnalysis:
     
     def pvt(self, close: Union[np.ndarray, pd.Series, list],
            volume: Union[np.ndarray, pd.Series, list]) -> Union[np.ndarray, pd.Series]:
-        """Price Volume Trend"""
+        """
+        Price Volume Trend (TradingView Pine Script Implementation)
+        
+        Parameters:
+        -----------
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        volume : Union[np.ndarray, pd.Series, list]
+            Volume data
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            PVT values - Formula: vt = ta.cum(ta.change(src)/src[1]*volume)
+        """
         return self._pvt.calculate(close, volume)
     
     # =================== NEW OSCILLATORS ===================
@@ -970,7 +1113,27 @@ class TechnicalAnalysis:
            low: Union[np.ndarray, pd.Series, list],
            close: Union[np.ndarray, pd.Series, list],
            period: int = 10) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
-        """Relative Vigor Index"""
+        """
+        Relative Vigor Index (TradingView Pine Script Implementation)
+        
+        Parameters:
+        -----------
+        open_prices : Union[np.ndarray, pd.Series, list]
+            Opening prices
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        period : int, default=10
+            Period for RVI calculation
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
+            (rvi, signal) - Formula: rvi = math.sum(ta.swma(close-open), len) / math.sum(ta.swma(high-low), len)
+        """
         return self._rvi_osc.calculate(open_prices, high, low, close, period)
     
     def cho(self, high: Union[np.ndarray, pd.Series, list],
@@ -996,13 +1159,13 @@ class TechnicalAnalysis:
         """McGinley Dynamic (alias for mcginley_dynamic)"""
         return self._mcginley_dynamic.calculate(data, period) if hasattr(self, '_mcginley_dynamic') else None
         
-    def starc(self, high, low, close, ma_period=20, atr_period=15, multiplier=2.0):
-        """STARC Bands (alias for starc_bands)"""
+    def starc(self, high, low, close, ma_period=5, atr_period=15, multiplier=1.33):
+        """STARC Bands (TradingView Pine Script v2) - uses SMA(5) + ATR(15) * 1.33"""
         return self._starc_bands.calculate(high, low, close, ma_period, atr_period, multiplier) if hasattr(self, '_starc_bands') else None
     
-    def ulcerindex(self, data, period=14):
-        """Ulcer Index (alias for ulcer_index)"""
-        return self._ulcer_index.calculate(data, period) if hasattr(self, '_ulcer_index') else None
+    def ulcerindex(self, data, length=14, smooth_length=14, signal_length=52, signal_type="SMA", return_signal=False):
+        """Ulcer Index (TradingView Pine Script v4) - measures downside risk with optional signal line"""
+        return self._ulcer_index.calculate(data, length, smooth_length, signal_length, signal_type, return_signal) if hasattr(self, '_ulcer_index') else None
         
     def rwi(self, high, low, close, period=14):
         """Random Walk Index (alias for random_walk_index)"""
@@ -1048,21 +1211,48 @@ class TechnicalAnalysis:
         """True Strength Index (alias)"""
         return self._tsi.calculate(data, long_period, short_period, signal_period) if hasattr(self, '_tsi') else None
         
-    def vi(self, high, low, close, period=14):
-        """Vortex Indicator (alias)"""
+    def vi(self, high: Union[np.ndarray, pd.Series, list],
+               low: Union[np.ndarray, pd.Series, list],
+               close: Union[np.ndarray, pd.Series, list],
+               period: int = 14) -> Union[Tuple[np.ndarray, np.ndarray], None]:
+        """
+        Vortex Indicator (VI+ and VI-) - TradingView Pine Script v6 Implementation
+        
+        Parameters:
+        -----------
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+        close : Union[np.ndarray, pd.Series, list]
+            Closing prices
+        period : int, default=14
+            Period for VI calculation (TradingView default)
+            
+        Returns:
+        --------
+        Union[Tuple[np.ndarray, np.ndarray], None]
+            (vi_plus, vi_minus) or None if not available
+            
+        Notes:
+        ------
+        TradingView Pine Script v6 Formula:
+        VMP = math.sum( math.abs( high - low[1]), period_ )
+        VMM = math.sum( math.abs( low - high[1]), period_ )
+        STR = math.sum( ta.atr(1), period_ )
+        VIP = VMP / STR
+        VIM = VMM / STR
+        """
         return self._vi.calculate(high, low, close, period) if hasattr(self, '_vi') else None
         
-    def stc(self, data, fast_period=23, slow_period=50, cycle_period=10, d1_period=3, d2_period=3):
-        """Schaff Trend Cycle (alias)"""
-        return self._stc.calculate(data, fast_period, slow_period, cycle_period, d1_period, d2_period) if hasattr(self, '_stc') else None
+    def stc(self, data, fast_length=23, slow_length=50, cycle_length=10, d1_length=3, d2_length=3):
+        """Schaff Trend Cycle (TradingView Pine Script v4) - cyclical oscillator combining MACD and stochastics"""
+        return self._stc.calculate(data, fast_length, slow_length, cycle_length, d1_length, d2_length) if hasattr(self, '_stc') else None
         
     def gator_oscillator(self, high, low, jaw_period=13, teeth_period=8, lips_period=5):
         """Gator Oscillator (alias) - matches TradingView exactly"""
         return self._gator_oscillator.calculate(high, low, jaw_period, teeth_period, lips_period) if hasattr(self, '_gator_oscillator') else None
         
-    def zigzag(self, high, low, close, deviation=5.0):
-        """Zig Zag (alias)"""
-        return self._zigzag.calculate(high, low, close, deviation) if hasattr(self, '_zigzag') else None
     
     # =================== UTILITY FUNCTIONS ===================
     
@@ -1202,6 +1392,155 @@ class TechnicalAnalysis:
         """
         data = validate_input(data)
         return stdev(data, period)
+    
+    def exrem(self, primary: Union[np.ndarray, pd.Series, list], 
+              secondary: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+        """
+        Excess Removal function - eliminates excessive signals
+        
+        Parameters:
+        -----------
+        primary : Union[np.ndarray, pd.Series, list]
+            Primary signal array (boolean-like)
+        secondary : Union[np.ndarray, pd.Series, list]
+            Secondary signal array (boolean-like)
+            
+        Returns:
+        --------
+        np.ndarray
+            Boolean array with excess signals removed
+        """
+        primary = validate_input(primary)
+        secondary = validate_input(secondary)
+        return exrem(primary, secondary)
+    
+    def flip(self, primary: Union[np.ndarray, pd.Series, list], 
+             secondary: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+        """
+        Flip function - creates a toggle state based on two signals
+        
+        Parameters:
+        -----------
+        primary : Union[np.ndarray, pd.Series, list]
+            Primary signal array (boolean-like)
+        secondary : Union[np.ndarray, pd.Series, list]
+            Secondary signal array (boolean-like)
+            
+        Returns:
+        --------
+        np.ndarray
+            Boolean array representing flip state
+        """
+        primary = validate_input(primary)
+        secondary = validate_input(secondary)
+        return flip(primary, secondary)
+    
+    def valuewhen(self, expr: Union[np.ndarray, pd.Series, list], 
+                  array: Union[np.ndarray, pd.Series, list], n: int = 1) -> np.ndarray:
+        """
+        Returns the value of array when expr was true for the nth most recent time
+        
+        Parameters:
+        -----------
+        expr : Union[np.ndarray, pd.Series, list]
+            Expression array (boolean-like)
+        array : Union[np.ndarray, pd.Series, list]
+            Value array to sample from
+        n : int, default=1
+            Which occurrence to get (1 = most recent, 2 = second most recent, etc.)
+            
+        Returns:
+        --------
+        np.ndarray
+            Array of values when condition was true
+        """
+        expr = validate_input(expr)
+        array = validate_input(array)
+        return valuewhen(expr, array, n)
+    
+    def rising(self, data: Union[np.ndarray, pd.Series, list], length: int) -> np.ndarray:
+        """
+        Check if data is rising (current value > value n periods ago)
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Input data series
+        length : int
+            Number of periods to look back
+            
+        Returns:
+        --------
+        np.ndarray
+            Boolean array indicating rising periods
+        """
+        data = validate_input(data)
+        return rising(data, length)
+    
+    def falling(self, data: Union[np.ndarray, pd.Series, list], length: int) -> np.ndarray:
+        """
+        Check if data is falling (current value < value n periods ago)
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Input data series
+        length : int
+            Number of periods to look back
+            
+        Returns:
+        --------
+        np.ndarray
+            Boolean array indicating falling periods
+        """
+        data = validate_input(data)
+        return falling(data, length)
+    
+    def cross(self, series1: Union[np.ndarray, pd.Series, list], 
+              series2: Union[np.ndarray, pd.Series, list]) -> np.ndarray:
+        """
+        Check if series1 crosses series2 (either direction)
+        Combines crossover and crossunder functionality
+        
+        Parameters:
+        -----------
+        series1 : Union[np.ndarray, pd.Series, list]
+            First series
+        series2 : Union[np.ndarray, pd.Series, list]
+            Second series
+            
+        Returns:
+        --------
+        np.ndarray
+            Boolean array indicating cross points (both over and under)
+        """
+        series1 = validate_input(series1)
+        series2 = validate_input(series2)
+        return cross(series1, series2)
+    
+    def coppock(self, data: Union[np.ndarray, pd.Series, list], 
+                wma_length: int = 10, long_roc_length: int = 14, 
+                short_roc_length: int = 11) -> Union[np.ndarray, pd.Series]:
+        """
+        Coppock Curve - Long-term momentum indicator
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically closing prices)
+        wma_length : int, default=10
+            WMA Length for final smoothing
+        long_roc_length : int, default=14
+            Long RoC Length  
+        short_roc_length : int, default=11
+            Short RoC Length
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            Coppock Curve values in the same format as input
+        """
+        return self._coppock.calculate(data, wma_length, long_roc_length, short_roc_length)
 
 
 # Create global instance for easy access
@@ -1218,18 +1557,19 @@ __all__ = [
     'Fisher', 'CRSI',
     # Volatility indicators
     'ATR', 'BollingerBands', 'Keltner', 'Donchian', 'Chaikin', 'NATR', 
-    'RVI', 'ULTOSC', 'STDDEV', 'TRANGE', 'MASS', 'BBPercent', 'BBWidth', 'STARC',
+    'RVI', 'ULTOSC', 'TRANGE', 'MASS', 'BBPercent', 'BBWidth', 'STARC',
     'ChandelierExit', 'HistoricalVolatility', 'UlcerIndex',
     # Volume indicators
     'OBV', 'VWAP', 'MFI', 'ADL', 'CMF', 'EMV', 'FI', 'NVI', 'PVI', 'VOLOSC', 'VROC',
     'KlingerVolumeOscillator', 'PriceVolumeTrend',
     # Oscillators
     'ROC', 'CMO', 'TRIX', 'UO', 'AO', 'AC', 'PPO', 'PO', 'DPO', 'AROONOSC',
-    'StochRSI', 'RVI', 'CHO', 'CHOP', 'KST', 'TSI', 'VI', 'STC', 'GatorOscillator',
+    'StochRSI', 'RVI', 'CHO', 'CHOP', 'KST', 'TSI', 'VI', 'STC', 'GatorOscillator', 'Coppock',
     # Statistical indicators
     'LINREG', 'LRSLOPE', 'CORREL', 'BETA', 'VAR', 'TSF', 'MEDIAN', 'MODE',
     # Hybrid indicators
-    'ADX', 'Aroon', 'PivotPoints', 'SAR', 'DMI', 'PSAR', 'HT', 'ZigZag', 'WilliamsFractals', 'RWI',
+    'ADX', 'Aroon', 'PivotPoints', 'SAR', 'DMI', 'WilliamsFractals', 'RWI',
     # Utility functions
-    'crossover', 'crossunder', 'highest', 'lowest', 'change', 'roc', 'stdev'
+    'crossover', 'crossunder', 'highest', 'lowest', 'change', 'roc', 'stdev',
+    'exrem', 'flip', 'valuewhen', 'rising', 'falling', 'cross'
 ]

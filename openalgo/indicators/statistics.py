@@ -330,11 +330,26 @@ class BETA(BaseIndicator):
 
 class VAR(BaseIndicator):
     """
-    Variance
+    Variance - TradingView Pine Script v4 Implementation
     
-    Measures the dispersion of a dataset.
+    Calculates variance with support for both logarithmic returns and price modes,
+    including EMA smoothing and z-score analysis with signal generation.
     
-    Formula: Var = Σ(x - μ)² / n
+    TradingView Pine Script v4 Implementation by moot-al-cabal:
+    
+    Variance modes:
+    - "LR" (Logarithmic Returns): variance of log(close/close[1])*100
+    - "PR" (Price): variance of price values
+    
+    Formula:
+    1. source = if mode == "LR" then log(close/close[1])*100 else close
+    2. mean = sma(source, lookback)
+    3. For each i in lookback: array.push(s, pow(source[i]-mean, 2))
+    4. variance = array.sum(s) / (lookback-1)
+    5. stdev = sqrt(variance)
+    6. ema_variance = ema(variance, ema_period)
+    7. zscore = (variance - sma(variance, filter_lookback)) / stdev(variance, filter_lookback)
+    8. ema_zscore = ema(zscore, ema_length)
     """
     
     def __init__(self):
@@ -342,41 +357,190 @@ class VAR(BaseIndicator):
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_var(data: np.ndarray, period: int) -> np.ndarray:
-        """Numba optimized variance calculation"""
+    def _calculate_sma_safe(data: np.ndarray, period: int) -> np.ndarray:
+        """Safe SMA calculation without Numba issues"""
         n = len(data)
         result = np.full(n, np.nan)
         
         for i in range(period - 1, n):
             window = data[i - period + 1:i + 1]
-            mean_val = np.mean(window)
+            valid_count = 0
+            sum_val = 0.0
+            for j in range(len(window)):
+                if not np.isnan(window[j]):
+                    sum_val += window[j]
+                    valid_count += 1
             
-            variance = np.mean((window - mean_val) ** 2)
-            result[i] = variance
+            if valid_count == period:
+                result[i] = sum_val / period
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> Union[np.ndarray, pd.Series]:
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_ema_safe(data: np.ndarray, period: int) -> np.ndarray:
+        """Safe EMA calculation without Numba issues"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        alpha = 2.0 / (period + 1)
+        
+        # Find first valid value
+        first_valid_idx = -1
+        for i in range(n):
+            if not np.isnan(data[i]):
+                first_valid_idx = i
+                break
+        
+        if first_valid_idx == -1:
+            return result
+            
+        # Initialize with first valid value
+        result[first_valid_idx] = data[first_valid_idx]
+        
+        # Continue EMA calculation
+        for i in range(first_valid_idx + 1, n):
+            if not np.isnan(data[i]):
+                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
+            else:
+                result[i] = result[i - 1]
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_stdev_safe(data: np.ndarray, period: int) -> np.ndarray:
+        """Safe standard deviation calculation"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            window = data[i - period + 1:i + 1]
+            valid_count = 0
+            sum_val = 0.0
+            for j in range(len(window)):
+                if not np.isnan(window[j]):
+                    sum_val += window[j]
+                    valid_count += 1
+            
+            if valid_count == period:
+                mean_val = sum_val / period
+                sum_sq_diff = 0.0
+                for j in range(len(window)):
+                    if not np.isnan(window[j]):
+                        diff = window[j] - mean_val
+                        sum_sq_diff += diff * diff
+                
+                result[i] = np.sqrt(sum_sq_diff / period)
+        
+        return result
+    
+    @staticmethod
+    def _calculate_variance_tv(data: np.ndarray, lookback: int, use_log_returns: bool) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """TradingView Variance calculation with all components"""
+        n = len(data)
+        
+        # Step 1: Calculate source based on mode
+        source = np.full(n, np.nan)
+        
+        if use_log_returns:  # Logarithmic Returns
+            for i in range(1, n):
+                if data[i] > 0 and data[i-1] > 0:
+                    source[i] = np.log(data[i] / data[i-1]) * 100
+        else:  # Price mode
+            for i in range(n):
+                source[i] = data[i]
+        
+        # Step 2: Calculate variance using TradingView method
+        variance = np.full(n, np.nan)
+        stdev = np.full(n, np.nan)
+        
+        for i in range(lookback - 1, n):
+            # Calculate mean for the window
+            window = source[i - lookback + 1:i + 1]
+            valid_count = 0
+            sum_val = 0.0
+            for j in range(len(window)):
+                if not np.isnan(window[j]):
+                    sum_val += window[j]
+                    valid_count += 1
+            
+            if valid_count == lookback:
+                mean_val = sum_val / lookback
+                
+                # TradingView method: sum of squared differences divided by (lookback-1)
+                sum_sq_diff = 0.0
+                for j in range(len(window)):
+                    if not np.isnan(window[j]):
+                        diff = window[j] - mean_val
+                        sum_sq_diff += diff * diff
+                
+                variance[i] = sum_sq_diff / (lookback - 1)  # TradingView uses (n-1)
+                stdev[i] = np.sqrt(variance[i])
+        
+        return source, variance, stdev
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], 
+                 lookback: int = 20, mode: str = "PR", ema_period: int = 20,
+                 filter_lookback: int = 20, ema_length: int = 14,
+                 return_components: bool = False) -> Union[np.ndarray, pd.Series, Tuple]:
         """
-        Calculate Variance
+        Calculate Variance - TradingView Pine Script v4 Implementation
         
         Parameters:
         -----------
         data : Union[np.ndarray, pd.Series, list]
-            Price data
-        period : int, default=20
-            Period for variance calculation
+            Price data (close prices)
+        lookback : int, default=20
+            Variance lookback period
+        mode : str, default="PR"
+            Variance mode: "LR" for Logarithmic Returns, "PR" for Price
+        ema_period : int, default=20
+            EMA period for variance smoothing
+        filter_lookback : int, default=20
+            Lookback period for variance filter (z-score calculation)
+        ema_length : int, default=14
+            EMA length for z-score smoothing
+        return_components : bool, default=False
+            If True, returns (variance, ema_variance, zscore, ema_zscore, stdev)
             
         Returns:
         --------
-        Union[np.ndarray, pd.Series]
-            Variance values in the same format as input
+        Union[np.ndarray, pd.Series, Tuple]
+            Variance values or tuple of all components
         """
         validated_data, input_type, index = self.validate_input(data)
-        self.validate_period(period, len(validated_data))
+        self.validate_period(lookback, len(validated_data))
         
-        result = self._calculate_var(validated_data, period)
-        return self.format_output(result, input_type, index)
+        # Validate mode
+        if mode not in ["LR", "PR"]:
+            raise ValueError("Mode must be 'LR' (Logarithmic Returns) or 'PR' (Price)")
+        
+        # Calculate base variance components
+        use_log_returns = (mode == "LR")
+        source, variance, stdev = self._calculate_variance_tv(validated_data, lookback, use_log_returns)
+        
+        # Calculate EMA of variance
+        ema_variance = self._calculate_ema_safe(variance, ema_period)
+        
+        # Calculate z-score components
+        variance_sma = self._calculate_sma_safe(variance, filter_lookback)
+        variance_stdev = self._calculate_stdev_safe(variance, filter_lookback)
+        
+        # Calculate z-score: (variance - sma(variance)) / stdev(variance)
+        zscore = np.full(len(variance), np.nan)
+        for i in range(len(variance)):
+            if (not np.isnan(variance[i]) and not np.isnan(variance_sma[i]) and 
+                not np.isnan(variance_stdev[i]) and variance_stdev[i] > 0):
+                zscore[i] = (variance[i] - variance_sma[i]) / variance_stdev[i]
+        
+        # Calculate EMA of z-score
+        ema_zscore = self._calculate_ema_safe(zscore, ema_length)
+        
+        if return_components:
+            results = (variance, ema_variance, zscore, ema_zscore, stdev)
+            return self.format_multiple_outputs(results, input_type, index)
+        else:
+            return self.format_output(variance, input_type, index)
 
 
 class TSF(BaseIndicator):
@@ -442,9 +606,13 @@ class TSF(BaseIndicator):
 
 class MEDIAN(BaseIndicator):
     """
-    Rolling Median
+    Rolling Median (Pine Script v6)
     
-    Calculates the median value over a rolling window.
+    Calculates the median value over a rolling window using percentile_nearest_rank.
+    Pine Script v6 Formula:
+    median = ta.percentile_nearest_rank(source, length, 50)
+    
+    This is equivalent to the 50th percentile of the data.
     """
     
     def __init__(self):
@@ -453,37 +621,42 @@ class MEDIAN(BaseIndicator):
     @staticmethod
     @jit(nopython=True)
     def _calculate_median(data: np.ndarray, period: int) -> np.ndarray:
-        """Numba optimized median calculation"""
+        """Numba optimized median calculation (percentile_nearest_rank with 50th percentile)"""
         n = len(data)
         result = np.full(n, np.nan)
         
         for i in range(period - 1, n):
             window = data[i - period + 1:i + 1].copy()
             
-            # Simple bubble sort for median (works well for small periods)
+            # Sort the window
             for j in range(period):
                 for k in range(period - 1 - j):
                     if window[k] > window[k + 1]:
                         window[k], window[k + 1] = window[k + 1], window[k]
             
-            # Get median
+            # Get median (50th percentile) - nearest rank method
+            # For percentile_nearest_rank, we take the actual value at the position
             if period % 2 == 1:
                 result[i] = window[period // 2]
             else:
-                result[i] = (window[period // 2 - 1] + window[period // 2]) / 2
+                # For even length, take the average of the two middle values
+                result[i] = (window[period // 2 - 1] + window[period // 2]) / 2.0
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 20) -> Union[np.ndarray, pd.Series]:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 3) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate Rolling Median
+        Calculate Rolling Median (Pine Script v6)
+        
+        Pine Script v6 Formula:
+        median = ta.percentile_nearest_rank(source, length, 50)
         
         Parameters:
         -----------
         data : Union[np.ndarray, pd.Series, list]
-            Price data
-        period : int, default=20
-            Period for median calculation
+            Price data (default hl2 in Pine Script)
+        period : int, default=3
+            Period for median calculation (Pine Script default)
             
         Returns:
         --------
@@ -495,6 +668,178 @@ class MEDIAN(BaseIndicator):
         
         result = self._calculate_median(validated_data, period)
         return self.format_output(result, input_type, index)
+
+
+class MedianBands(BaseIndicator):
+    """
+    Median Bands (Pine Script v6 Complete Implementation)
+    
+    Implements the complete Pine Script v6 Median indicator with:
+    - Median line using percentile_nearest_rank
+    - ATR-based upper and lower bands
+    - EMA of the median
+    
+    Pine Script v6 Formula:
+    median = ta.percentile_nearest_rank(source, length, 50)
+    atr_ = atr_mult * ta.atr(atr_length)
+    upper = median + atr_
+    lower = median - atr_
+    median_ema = ta.ema(median, length)
+    """
+    
+    def __init__(self):
+        super().__init__("Median Bands")
+    
+    def calculate(self, *args, **kwargs):
+        """Wrapper for calculate_with_bands to satisfy BaseIndicator abstract method"""
+        return self.calculate_with_bands(*args, **kwargs)
+        
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_median_percentile(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate median using percentile_nearest_rank method"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            window = data[i - period + 1:i + 1].copy()
+            
+            # Sort the window
+            for j in range(period):
+                for k in range(period - 1 - j):
+                    if window[k] > window[k + 1]:
+                        window[k], window[k + 1] = window[k + 1], window[k]
+            
+            # percentile_nearest_rank for 50th percentile
+            if period % 2 == 1:
+                result[i] = window[period // 2]
+            else:
+                # For even length, take the lower middle value
+                result[i] = window[period // 2 - 1]
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_ema(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate EMA with NaN handling"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        alpha = 2.0 / (period + 1)
+        
+        # Find first valid value
+        first_valid_idx = -1
+        for i in range(n):
+            if not np.isnan(data[i]):
+                first_valid_idx = i
+                break
+        
+        if first_valid_idx == -1:
+            return result
+            
+        # Initialize with first valid value
+        result[first_valid_idx] = data[first_valid_idx]
+        
+        # Continue EMA calculation
+        for i in range(first_valid_idx + 1, n):
+            if not np.isnan(data[i]):
+                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
+            else:
+                result[i] = result[i - 1]
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
+        """Calculate ATR"""
+        n = len(close)
+        tr = np.full(n, np.nan)
+        atr = np.full(n, np.nan)
+        
+        # Calculate True Range
+        tr[0] = high[0] - low[0]
+        for i in range(1, n):
+            hl = high[i] - low[i]
+            hc = abs(high[i] - close[i-1])
+            lc = abs(low[i] - close[i-1])
+            tr[i] = max(hl, hc, lc)
+        
+        # Calculate ATR (Wilder's smoothing)
+        # Initial ATR
+        if n >= period:
+            sum_tr = 0.0
+            for i in range(period):
+                sum_tr += tr[i]
+            atr[period-1] = sum_tr / period
+            
+            # Subsequent ATR values
+            for i in range(period, n):
+                atr[i] = (atr[i-1] * (period - 1) + tr[i]) / period
+        
+        return atr
+    
+    def calculate_with_bands(self, high: Union[np.ndarray, pd.Series, list],
+                            low: Union[np.ndarray, pd.Series, list],
+                            close: Union[np.ndarray, pd.Series, list],
+                            source: Optional[Union[np.ndarray, pd.Series, list]] = None,
+                            median_length: int = 3,
+                            atr_length: int = 14,
+                            atr_mult: float = 2.0) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], 
+                                                           Tuple[pd.Series, pd.Series, pd.Series, pd.Series]]:
+        """
+        Calculate Median with Bands and EMA (Pine Script v6 Complete)
+        
+        Parameters:
+        -----------
+        high : Union[np.ndarray, pd.Series, list]
+            High prices
+        low : Union[np.ndarray, pd.Series, list]
+            Low prices
+        close : Union[np.ndarray, pd.Series, list]
+            Close prices
+        source : Optional[Union[np.ndarray, pd.Series, list]]
+            Source data for median (default: hl2 = (high + low) / 2)
+        median_length : int, default=3
+            Period for median calculation
+        atr_length : int, default=14
+            Period for ATR calculation
+        atr_mult : float, default=2.0
+            ATR multiplier for bands
+            
+        Returns:
+        --------
+        Tuple of (median, upper_band, lower_band, median_ema)
+        """
+        high_data, input_type, index = self.validate_input(high)
+        low_data, _, _ = self.validate_input(low)
+        close_data, _, _ = self.validate_input(close)
+        
+        # Align arrays
+        high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
+        
+        # Calculate source (hl2 if not provided)
+        if source is None:
+            source_data = (high_data + low_data) / 2.0
+        else:
+            source_data, _, _ = self.validate_input(source)
+        
+        # Calculate median
+        median = self._calculate_median_percentile(source_data, median_length)
+        
+        # Calculate ATR
+        atr = self._calculate_atr(high_data, low_data, close_data, atr_length)
+        atr_scaled = atr * atr_mult
+        
+        # Calculate bands
+        upper_band = median + atr_scaled
+        lower_band = median - atr_scaled
+        
+        # Calculate EMA of median
+        median_ema = self._calculate_ema(median, median_length)
+        
+        results = (median, upper_band, lower_band, median_ema)
+        return self.format_multiple_outputs(results, input_type, index)
 
 
 class MODE(BaseIndicator):

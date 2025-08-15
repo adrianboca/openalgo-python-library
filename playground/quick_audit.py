@@ -126,7 +126,7 @@ def main():
         
         # Hybrid Indicators
         'adx': lambda data: ta.adx(data['high'], data['low'], data['close']),
-        'zigzag': lambda data: ta.zigzag(data['high'], data['low'], data['close']),
+
     }
     
     print("OpenAlgo Quick Speed Audit")

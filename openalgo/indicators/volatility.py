@@ -737,32 +737,48 @@ class TRANGE(BaseIndicator):
 
 class MASS(BaseIndicator):
     """
-    Mass Index
+    Mass Index (Pine Script v6)
     
     The Mass Index uses the high-low range to identify trend reversals 
     based on range expansion.
     
-    Formula: MI = SMA(EMA(H-L, 9) / EMA(EMA(H-L, 9), 9), 25)
+    Pine Script v6 Formula:
+    span = high - low
+    mi = math.sum(ta.ema(span, 9) / ta.ema(ta.ema(span, 9), 9), length)
+    
+    Default length = 10
     """
     
     def __init__(self):
         super().__init__("Mass Index")
     
     @staticmethod
-    @jit(nopython=True)
+    @jit(nopython=True) 
     def _calculate_ema(data: np.ndarray, period: int) -> np.ndarray:
-        """Calculate EMA"""
+        """Calculate EMA with NaN handling - Pine Script style"""
         n = len(data)
-        result = np.full(n, np.nan)  # Initialize with NaN
+        result = np.full(n, np.nan)
         alpha = 2.0 / (period + 1)
         
-        sma_seed = 0.0
-        for i in range(period):
-            sma_seed += data[i]
-        result[period-1] = sma_seed / period
+        # Find first valid value to start with
+        first_valid_idx = -1
+        for i in range(n):
+            if not np.isnan(data[i]):
+                first_valid_idx = i
+                break
         
-        for i in range(period, n):
-            result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
+        if first_valid_idx == -1:
+            return result
+            
+        # Initialize EMA with first valid value (Pine Script behavior)
+        result[first_valid_idx] = data[first_valid_idx]
+        
+        # Continue EMA calculation
+        for i in range(first_valid_idx + 1, n):
+            if not np.isnan(data[i]):
+                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
+            else:
+                result[i] = result[i - 1]  # Carry forward last value
         
         return result
     
@@ -780,9 +796,13 @@ class MASS(BaseIndicator):
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
-                 fast_period: int = 9, slow_period: int = 25) -> Union[np.ndarray, pd.Series]:
+                 length: int = 10) -> Union[np.ndarray, pd.Series]:
         """
         Calculate Mass Index
+        
+        Pine Script v6 Formula:
+        span = high - low
+        mi = math.sum(ta.ema(span, 9) / ta.ema(ta.ema(span, 9), 9), length)
         
         Parameters:
         -----------
@@ -790,10 +810,8 @@ class MASS(BaseIndicator):
             High prices
         low : Union[np.ndarray, pd.Series, list]
             Low prices
-        fast_period : int, default=9
-            Period for EMA calculation
-        slow_period : int, default=25
-            Period for SMA calculation
+        length : int, default=10
+            Period for sum calculation (Pine Script default)
             
         Returns:
         --------
@@ -805,25 +823,29 @@ class MASS(BaseIndicator):
         
         high_data, low_data = self.align_arrays(high_data, low_data)
         
-        # Calculate high-low range
-        hl_range = high_data - low_data
+        # Calculate high-low range (span)
+        span = high_data - low_data
         
-        # Calculate first EMA
-        ema1 = self._calculate_ema(hl_range, fast_period)
+        # Calculate first EMA of span with period 9
+        ema1 = self._calculate_ema(span, 9)
         
-        # Calculate second EMA
-        ema2 = self._calculate_ema(ema1, fast_period)
+        # Calculate second EMA of first EMA with period 9
+        ema2 = self._calculate_ema(ema1, 9)
         
-        # Calculate ratio
-        ratio = np.empty_like(ema1)
-        for i in range(len(ema1)):
-            if ema2[i] != 0:
-                ratio[i] = ema1[i] / ema2[i]
-            else:
-                ratio[i] = 1.0
+        # Calculate ratio (ema1 / ema2)
+        ratio = np.where((ema2 != 0) & (~np.isnan(ema1)) & (~np.isnan(ema2)), 
+                        ema1 / ema2, np.nan)
         
-        # Calculate SMA of ratio
-        result = self._calculate_sma(ratio, slow_period)
+        # Calculate sum of ratio over length periods (equivalent to Pine Script math.sum)
+        result = np.full_like(ratio, np.nan)
+        
+        # Start calculating once we have at least 'length' valid ratio values
+        for i in range(length - 1, len(ratio)):
+            window = ratio[i - length + 1:i + 1]
+            # Sum valid values (Pine Script math.sum includes NaN handling)
+            valid_values = window[~np.isnan(window)]
+            if len(valid_values) > 0:  # Any valid values
+                result[i] = np.sum(valid_values)
         
         return self.format_output(result, input_type, index)
 
@@ -1203,54 +1225,167 @@ class HistoricalVolatility(BaseIndicator):
 
 class UlcerIndex(BaseIndicator):
     """
-    Ulcer Index
+    Ulcer Index - TradingView Pine Script v4 Implementation
     
     Measures downside risk by calculating the depth and duration of drawdowns.
+    Based on TradingView Pine Script v4 implementation by Alex Orekhov (everget).
     
-    Formula: UI = sqrt(sum((Close - MaxClose)^2 / MaxClose^2, period) / period) × 100
+    TradingView Formula:
+    highest = highest(src, length)
+    drawdown = 100 * (src - highest) / highest
+    ulcer = sqrt(sma(pow(drawdown, 2), smoothLength))
+    signal = signalType == "SMA" ? sma(ulcer, signalLength) : ema(ulcer, signalLength)
+    
+    Default Parameters (TradingView):
+    - length = 14
+    - smoothLength = 14
+    - signalLength = 52
+    - signalType = "SMA"
+    - breakout = 1.5
     """
     
     def __init__(self):
         super().__init__("Ulcer Index")
     
-    @staticmethod
-    def _calculate_ulcer_index(data: np.ndarray, period: int) -> np.ndarray:
-        """Optimized Ulcer Index calculation using utils"""
-        return ulcer_index_optimized(data, period)
+    def _calculate_ema_safe(self, data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate EMA safely without Numba issues"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        alpha = 2.0 / (period + 1)
+        
+        # Find first valid (non-NaN) value
+        first_valid = -1
+        for i in range(n):
+            if not np.isnan(data[i]):
+                first_valid = i
+                break
+        
+        if first_valid == -1:
+            return result
+        
+        result[first_valid] = data[first_valid]
+        
+        for i in range(first_valid + 1, n):
+            if not np.isnan(data[i]):
+                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
+            else:
+                result[i] = result[i - 1]
+        
+        return result
+    
+    def _calculate_sma_safe(self, data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate SMA safely"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period - 1, n):
+            window = data[i - period + 1:i + 1]
+            valid_values = window[~np.isnan(window)]
+            if len(valid_values) == period:
+                result[i] = np.mean(valid_values)
+        
+        return result
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 period: int = 14) -> Union[np.ndarray, pd.Series]:
+                 length: int = 14, smooth_length: int = 14, signal_length: int = 52, 
+                 signal_type: str = "SMA", return_signal: bool = False) -> Union[np.ndarray, pd.Series, Tuple[np.ndarray, np.ndarray]]:
         """
-        Calculate Ulcer Index
+        Calculate Ulcer Index using TradingView Pine Script v4 formula
         
         Parameters:
         -----------
         data : Union[np.ndarray, pd.Series, list]
             Price data (typically closing prices)
-        period : int, default=14
-            Period for Ulcer Index calculation
+        length : int, default=14
+            Period for highest calculation (TradingView length)
+        smooth_length : int, default=14
+            Period for smoothing the squared drawdowns (TradingView smoothLength)
+        signal_length : int, default=52
+            Period for signal line calculation (TradingView signalLength)
+        signal_type : str, default="SMA"
+            Type of signal smoothing: "SMA" or "EMA" (TradingView signalType)
+        return_signal : bool, default=False
+            Whether to return both ulcer and signal line
             
         Returns:
         --------
-        Union[np.ndarray, pd.Series]
-            Ulcer Index values in the same format as input
+        Union[np.ndarray, pd.Series] or Tuple[np.ndarray, np.ndarray]
+            Ulcer Index values (and signal if return_signal=True) in the same format as input
+            
+        Notes:
+        ------
+        This implementation matches TradingView Pine Script v4:
+        highest = highest(src, length)
+        drawdown = 100 * (src - highest) / highest
+        ulcer = sqrt(sma(pow(drawdown, 2), smoothLength))
+        signal = signalType == "SMA" ? sma(ulcer, signalLength) : ema(ulcer, signalLength)
         """
         validated_data, input_type, index = self.validate_input(data)
-        self.validate_period(period, len(validated_data))
+        self.validate_period(length, len(validated_data))
+        self.validate_period(smooth_length, len(validated_data))
+        self.validate_period(signal_length, len(validated_data))
         
-        result = self._calculate_ulcer_index(validated_data, period)
-        return self.format_output(result, input_type, index)
+        # Step 1: Calculate highest over the length period
+        # highest = highest(src, length)
+        n = len(validated_data)
+        highest_values = np.full(n, np.nan)
+        
+        for i in range(length - 1, n):
+            window = validated_data[i - length + 1:i + 1]
+            highest_values[i] = np.max(window)
+        
+        # Step 2: Calculate percentage drawdown
+        # drawdown = 100 * (src - highest) / highest
+        drawdown = np.full(n, np.nan)
+        for i in range(n):
+            if not np.isnan(highest_values[i]) and highest_values[i] != 0:
+                drawdown[i] = 100 * (validated_data[i] - highest_values[i]) / highest_values[i]
+        
+        # Step 3: Calculate squared drawdowns
+        # pow(drawdown, 2)
+        squared_drawdown = np.power(drawdown, 2)
+        
+        # Step 4: Calculate SMA of squared drawdowns
+        # sma(pow(drawdown, 2), smoothLength)
+        sma_squared_dd = self._calculate_sma_safe(squared_drawdown, smooth_length)
+        
+        # Step 5: Calculate Ulcer Index
+        # ulcer = sqrt(sma(pow(drawdown, 2), smoothLength))
+        ulcer = np.sqrt(sma_squared_dd)
+        
+        if return_signal:
+            # Step 6: Calculate signal line
+            # signal = signalType == "SMA" ? sma(ulcer, signalLength) : ema(ulcer, signalLength)
+            if signal_type.upper() == "SMA":
+                signal = self._calculate_sma_safe(ulcer, signal_length)
+            else:  # EMA
+                signal = self._calculate_ema_safe(ulcer, signal_length)
+            
+            # Format outputs
+            ulcer_formatted = self.format_output(ulcer, input_type, index)
+            signal_formatted = self.format_output(signal, input_type, index)
+            return ulcer_formatted, signal_formatted
+        else:
+            return self.format_output(ulcer, input_type, index)
 
 
 class STARC(BaseIndicator):
     """
-    STARC Bands (Stoller Channels)
+    STARC Bands (Stoller Channels) - TradingView Pine Script v2 Implementation
     
     STARC Bands use an SMA and Average True Range to create bands.
+    Based on TradingView Pine Script implementation with specific parameters.
     
-    Formula:
-    Upper Band = SMA + (multiplier × ATR)
-    Lower Band = SMA - (multiplier × ATR)
+    TradingView Formula:
+    xMA = sma(close, LengthMA)
+    xATR = atr(LengthATR)
+    xSTARCBandUp = xMA + xATR * K
+    xSTARCBandDn = xMA - xATR * K
+    
+    Default Parameters (TradingView):
+    - LengthMA = 5
+    - LengthATR = 15
+    - K = 1.33
     """
     
     def __init__(self):
@@ -1277,25 +1412,30 @@ class STARC(BaseIndicator):
         atr = np.full(n, np.nan)
         
         # Calculate True Range
-        tr[0] = high[0] - low[0]
-        for i in range(1, n):
-            tr[i] = max(high[i] - low[i], 
-                       abs(high[i] - close[i - 1]), 
-                       abs(low[i] - close[i - 1]))
-        
-        # Calculate ATR using SMA
-        for i in range(period - 1, n):
-            atr[i] = np.mean(tr[i - period + 1:i + 1])
+        if n > 0:
+            tr[0] = high[0] - low[0]
+            for i in range(1, n):
+                hl = high[i] - low[i]
+                hc = abs(high[i] - close[i - 1])
+                lc = abs(low[i] - close[i - 1])
+                tr[i] = max(hl, max(hc, lc))
+            
+            # Calculate ATR using SMA
+            for i in range(period - 1, n):
+                sum_tr = 0.0
+                for j in range(i - period + 1, i + 1):
+                    sum_tr += tr[j]
+                atr[i] = sum_tr / period
         
         return atr
     
     def calculate(self, high: Union[np.ndarray, pd.Series, list],
                  low: Union[np.ndarray, pd.Series, list],
                  close: Union[np.ndarray, pd.Series, list],
-                 ma_period: int = 20, atr_period: int = 15, 
-                 multiplier: float = 2.0) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
+                 ma_period: int = 5, atr_period: int = 15, 
+                 multiplier: float = 1.33) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]:
         """
-        Calculate STARC Bands
+        Calculate STARC Bands using TradingView Pine Script formula
         
         Parameters:
         -----------
@@ -1305,17 +1445,25 @@ class STARC(BaseIndicator):
             Low prices
         close : Union[np.ndarray, pd.Series, list]
             Closing prices
-        ma_period : int, default=20
-            Period for SMA calculation
+        ma_period : int, default=5
+            Period for SMA calculation (LengthMA in TradingView)
         atr_period : int, default=15
-            Period for ATR calculation
-        multiplier : float, default=2.0
-            ATR multiplier
+            Period for ATR calculation (LengthATR in TradingView)
+        multiplier : float, default=1.33
+            ATR multiplier (K in TradingView)
             
         Returns:
         --------
         Union[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series]]
             (upper_band, middle_line, lower_band) in the same format as input
+            
+        Notes:
+        ------
+        This implementation matches TradingView Pine Script v2:
+        - xMA = sma(close, 5)
+        - xATR = atr(15)
+        - Upper Band = xMA + xATR * 1.33
+        - Lower Band = xMA - xATR * 1.33
         """
         high_data, input_type, index = self.validate_input(high)
         low_data, _, _ = self.validate_input(low)

@@ -435,264 +435,6 @@ class DMI(BaseIndicator):
             return results[0], results[1]
 
 
-class PSAR(BaseIndicator):
-    """
-    Parabolic SAR (alias for SAR)
-    """
-    
-    def __init__(self):
-        super().__init__("PSAR")
-        self._sar = SAR()
-    
-    def calculate(self, high: Union[np.ndarray, pd.Series, list],
-                 low: Union[np.ndarray, pd.Series, list],
-                 acceleration: float = 0.02, maximum: float = 0.2) -> Union[np.ndarray, pd.Series]:
-        """
-        Calculate Parabolic SAR
-        
-        Returns only the SAR values (not the trend direction) in the same format as input
-        """
-        results = self._sar.calculate(high, low, acceleration, maximum)
-        # Return only the first component (SAR values), excluding trend direction
-        if isinstance(results[0], np.ndarray):
-            return results[0]
-        else:
-            return results[0]
-
-
-class HT(BaseIndicator):
-    """
-    Hilbert Sine Wave Support and Resistance - matches TradingView exactly
-    
-    Uses Hilbert Transform to calculate sine wave cycles and generate 
-    dynamic support and resistance levels based on market cycles.
-    
-    TradingView Script Implementation:
-    - Smoothing filter with cycle detection
-    - Phase calculation using Hilbert Transform
-    - Sine and LeadSine wave generation  
-    - Dynamic support/resistance level detection
-    """
-    
-    def __init__(self):
-        super().__init__("Hilbert Sine Wave SR")
-    
-    pass
-
-@jit(nopython=True)
-def _percentile_nearest_rank(data: np.ndarray, window: int, percentile: float) -> float:
-    """Calculate percentile using nearest rank method"""
-    if len(data) < window:
-        return 0.0
-    
-    # Get last 'window' values, excluding NaN
-    valid_data = []
-    count = 0
-    for i in range(len(data) - 1, -1, -1):
-        if not np.isnan(data[i]) and count < window:
-            valid_data.append(data[i])
-            count += 1
-    
-    if len(valid_data) == 0:
-        return 0.0
-    
-    # Sort the data
-    for i in range(len(valid_data)):
-        for j in range(i + 1, len(valid_data)):
-            if valid_data[i] > valid_data[j]:
-                valid_data[i], valid_data[j] = valid_data[j], valid_data[i]
-    
-    # Calculate percentile rank
-    rank = (percentile / 100.0) * (len(valid_data) - 1)
-    rank_int = int(rank)
-    
-    if rank_int >= len(valid_data) - 1:
-        return valid_data[-1]
-    elif rank_int < 0:
-        return valid_data[0]
-    else:
-        return valid_data[rank_int]
-
-class HT(BaseIndicator):
-    """
-    Hilbert Sine Wave Support and Resistance - matches TradingView exactly
-    
-    Uses Hilbert Transform to calculate sine wave cycles and generate 
-    dynamic support and resistance levels based on market cycles.
-    
-    TradingView Script Implementation:
-    - Smoothing filter with cycle detection
-    - Phase calculation using Hilbert Transform
-    - Sine and LeadSine wave generation  
-    - Dynamic support/resistance level detection
-    """
-    
-    def __init__(self):
-        super().__init__("Hilbert Sine Wave SR")
-    
-    @staticmethod
-    @jit(nopython=True)
-    def _calculate_hilbert_sine_wave(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Calculate Hilbert Sine Wave Support and Resistance - matches TradingView exactly
-        """
-        n = len(close)
-        
-        # Initialize arrays
-        smooth = np.full(n, np.nan)
-        cycle = np.full(n, np.nan)
-        q1 = np.full(n, np.nan)
-        i1 = np.full(n, np.nan)
-        delta_phase = np.full(n, np.nan)
-        inst_period = np.full(n, np.nan)
-        dc_period = np.full(n, np.nan)
-        dc_phase = np.full(n, np.nan)
-        sine = np.full(n, np.nan)
-        lead_sine = np.full(n, np.nan)
-        support_resistance = np.full(n, np.nan)
-        
-        # Constants
-        alpha = 0.07
-        
-        # Initialize first values
-        for i in range(min(7, n)):
-            smooth[i] = close[i]
-            cycle[i] = 0.0
-            inst_period[i] = 15.0
-            dc_period[i] = 15.0
-        
-        # Calculate smooth prices
-        for i in range(3, n):
-            smooth[i] = (close[i] + 2*close[i-1] + 2*close[i-2] + close[i-3]) / 6.0
-        
-        # Calculate cycle
-        for i in range(2, n):
-            cycle_val = ((1 - 0.5*alpha) * (1 - 0.5*alpha) * (smooth[i] - 2*smooth[i-1] + smooth[i-2]) + 
-                        2*(1-alpha)*cycle[i-1] - (1-alpha)*(1-alpha)*cycle[i-2])
-            cycle[i] = cycle_val
-        
-        # Calculate Q1 and I1
-        for i in range(6, n):
-            inst_period_prev = inst_period[i-1] if i > 0 else 15.0
-            q1[i] = (0.0962*cycle[i] + 0.5769*cycle[i-2] - 0.5769*cycle[i-4] - 0.0962*cycle[i-6]) * (0.5 + 0.08*inst_period_prev)
-            i1[i] = cycle[i-3]
-        
-        # Calculate Delta Phase
-        for i in range(1, n):
-            if not np.isnan(q1[i]) and not np.isnan(q1[i-1]) and q1[i] != 0 and q1[i-1] != 0:
-                delta_val = (i1[i]/q1[i] - i1[i-1]/q1[i-1]) / (1 + i1[i]*i1[i-1]/(q1[i]*q1[i-1]))
-                delta_phase[i] = max(0.1, min(1.1, delta_val))
-        
-        # Calculate MedianDelta and DC
-        value1 = 15.0
-        for i in range(5, n):
-            # Get median of last 5 delta_phase values
-            median_delta = _percentile_nearest_rank(delta_phase[:i+1], 5, 50.0)
-            
-            if median_delta == 0:
-                dc = 15.0
-            else:
-                dc = 6.28318 / median_delta + 0.5
-            
-            # InstPeriod calculation
-            inst_period[i] = 0.33*dc + 0.67*inst_period[i-1]
-            
-            # Value1 calculation  
-            value1 = 0.15*inst_period[i] + 0.85*value1
-            dc_period[i] = max(1, int(value1))
-        
-        # Calculate DCPhase, Sine, and LeadSine
-        for i in range(10, n):
-            dc_per = int(dc_period[i])
-            if dc_per > 0 and i >= dc_per:
-                real_part = 0.0
-                imag_part = 0.0
-                
-                # Calculate RealPart and ImagPart
-                for count in range(dc_per):
-                    if i - count >= 0:
-                        angle = 6.28318 * count / dc_per
-                        real_part += np.sin(angle) * cycle[i - count]
-                        imag_part += np.cos(angle) * cycle[i - count]
-                
-                # Calculate DCPhase
-                if abs(imag_part) > 0.001:
-                    dc_phase[i] = np.arctan(real_part / imag_part)
-                else:
-                    dc_phase[i] = 1.572963 * (1.0 if real_part >= 0 else -1.0)
-                
-                dc_phase[i] += 1.572963
-                if imag_part < 0:
-                    dc_phase[i] += 3.1415926
-                if dc_phase[i] > 5.49778705:
-                    dc_phase[i] -= 6.28318
-                
-                # Calculate Sine and LeadSine
-                sine[i] = np.sin(dc_phase[i])
-                lead_sine[i] = np.sin(dc_phase[i] + 0.78539815)
-        
-        # Calculate Support/Resistance levels
-        drawing_support = 1  # Start looking for support
-        curr_dot_value = close[0] if n > 0 else 0.0
-        
-        for i in range(1, n):
-            if not np.isnan(sine[i]) and not np.isnan(lead_sine[i]) and not np.isnan(dc_period[i]):
-                dc_per = int(dc_period[i])
-                lookback = max(1, dc_per // 8)
-                
-                if i >= lookback:
-                    lead_sine_past = lead_sine[i - lookback] if not np.isnan(lead_sine[i - lookback]) else 0
-                    sine_past = sine[i - lookback] if not np.isnan(sine[i - lookback]) else 0
-                    
-                    if lead_sine_past <= sine_past and drawing_support == 1:
-                        # Switch to resistance
-                        curr_dot_value = high[i] * 1.01
-                        drawing_support = 0
-                    elif lead_sine_past > sine_past and drawing_support == 0:
-                        # Switch to support
-                        curr_dot_value = low[i] * 0.99
-                        drawing_support = 1
-            
-            support_resistance[i] = curr_dot_value
-        
-        return sine, lead_sine, support_resistance, dc_phase
-    
-    def calculate(self, close: Union[np.ndarray, pd.Series, list],
-                 high: Union[np.ndarray, pd.Series, list],
-                 low: Union[np.ndarray, pd.Series, list]) -> Union[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series, pd.Series]]:
-        """
-        Calculate Hilbert Sine Wave Support and Resistance - matches TradingView exactly
-        
-        Parameters:
-        -----------
-        close : Union[np.ndarray, pd.Series, list]
-            Closing prices
-        high : Union[np.ndarray, pd.Series, list]
-            High prices  
-        low : Union[np.ndarray, pd.Series, list]
-            Low prices
-            
-        Returns:
-        --------
-        Union[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series, pd.Series, pd.Series]]
-            (sine, lead_sine, support_resistance, dc_phase) in the same format as input
-            - sine: Sine wave values
-            - lead_sine: Leading sine wave values  
-            - support_resistance: Dynamic support/resistance levels
-            - dc_phase: Dominant cycle phase
-        """
-        close_data, input_type, index = self.validate_input(close)
-        high_data, _, _ = self.validate_input(high)
-        low_data, _, _ = self.validate_input(low)
-        
-        close_data, high_data, low_data = self.align_arrays(close_data, high_data, low_data)
-        
-        sine, lead_sine, support_resistance, dc_phase = self._calculate_hilbert_sine_wave(close_data, high_data, low_data)
-        
-        results = (sine, lead_sine, support_resistance, dc_phase)
-        return self.format_multiple_outputs(results, input_type, index)
-
-
 class ZigZag(BaseIndicator):
     """
     Zig Zag
@@ -992,13 +734,13 @@ class WilliamsFractals(BaseIndicator):
 
 class RWI(BaseIndicator):
     """
-    Random Walk Index (RWI High/Low)
+    Random Walk Index (TradingView Pine Script Implementation)
     
     Measures how much a security's price movement differs from a random walk.
     
-    Formula:
-    RWI High = (High - Low[n]) / (ATR * sqrt(n))
-    RWI Low = (High[n] - Low) / (ATR * sqrt(n))
+    Formula (TradingView Pine Script):
+    rwiHigh = (high - nz(low[length])) / (atr(length) * sqrt(length))
+    rwiLow = (nz(high[length]) - low) / (atr(length) * sqrt(length))
     """
     
     def __init__(self):
@@ -1069,13 +811,18 @@ class RWI(BaseIndicator):
         for i in range(period - 1, n):
             atr[i] = np.mean(tr[i - period + 1:i + 1])
         
-        for i in range(period - 1, n):
+        # Calculate RWI using TradingView Pine Script formula
+        for i in range(period, n):  # Start from period to have valid lookback
             if atr[i] > 0:
-                # RWI High: (High - Low[n periods ago]) / (ATR * sqrt(n))
-                rwi_high[i] = (high[i] - low[i - period + 1]) / (atr[i] * np.sqrt(period))
+                # TradingView formula: rwiHigh = (high - nz(low[length])) / (atr(length) * sqrt(length))
+                # nz(low[length]) means low[i-length] with zero fill for missing values
+                low_lookback = low[i - period] if i >= period else 0.0
+                rwi_high[i] = (high[i] - low_lookback) / (atr[i] * np.sqrt(period))
                 
-                # RWI Low: (High[n periods ago] - Low) / (ATR * sqrt(n))
-                rwi_low[i] = (high[i - period + 1] - low[i]) / (atr[i] * np.sqrt(period))
+                # TradingView formula: rwiLow = (nz(high[length]) - low) / (atr(length) * sqrt(length))
+                # nz(high[length]) means high[i-length] with zero fill for missing values
+                high_lookback = high[i - period] if i >= period else 0.0
+                rwi_low[i] = (high_lookback - low[i]) / (atr[i] * np.sqrt(period))
             else:
                 rwi_high[i] = 0.0
                 rwi_low[i] = 0.0
@@ -1087,7 +834,7 @@ class RWI(BaseIndicator):
                  close: Union[np.ndarray, pd.Series, list],
                  period: int = 14) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
-        Calculate Random Walk Index
+        Calculate Random Walk Index (TradingView Pine Script Implementation)
         
         Parameters:
         -----------
@@ -1104,6 +851,8 @@ class RWI(BaseIndicator):
         --------
         Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
             (rwi_high, rwi_low) in the same format as input
+            Formula: rwiHigh = (high - nz(low[length])) / (atr(length) * sqrt(length))
+                    rwiLow = (nz(high[length]) - low) / (atr(length) * sqrt(length))
         """
         high_data, input_type, index = self.validate_input(high)
         low_data, _, _ = self.validate_input(low)

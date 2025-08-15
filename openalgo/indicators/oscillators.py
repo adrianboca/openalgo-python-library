@@ -11,6 +11,21 @@ from .base import BaseIndicator
 from .utils import sma, ema, highest, lowest, rolling_sum, true_range, cmo_optimized
 
 
+@jit(nopython=True)
+def _calculate_swma_helper(data: np.ndarray) -> np.ndarray:
+    """Helper function to calculate Symmetrically Weighted Moving Average (SWMA)
+    SWMA is a 4-period weighted moving average with weights [1, 2, 2, 1] / 6
+    """
+    n = len(data)
+    result = np.full(n, np.nan)
+    
+    for i in range(3, n):
+        # SWMA weights: [1, 2, 2, 1] / 6
+        result[i] = (data[i-3] + 2*data[i-2] + 2*data[i-1] + data[i]) / 6.0
+    
+    return result
+
+
 class ROC(BaseIndicator):
     """
     Rate of Change (Price Oscillator)
@@ -125,60 +140,89 @@ class CMO(BaseIndicator):
 
 class TRIX(BaseIndicator):
     """
-    TRIX - Triple Exponential Average
+    TRIX - Triple Exponential Average - TradingView Pine Script v6 Implementation
     
-    TRIX is a momentum oscillator that displays the percentage rate of change 
-    of a triple exponentially smoothed moving average.
+    TRIX is a momentum oscillator that displays the rate of change 
+    of a triple exponentially smoothed moving average of the logarithm of price.
     
-    Formula: TRIX = % change of triple EMA
+    TradingView Formula (Pine Script v6):
+    out = 10000 * ta.change(ta.ema(ta.ema(ta.ema(math.log(close), length), length), length))
+    
+    Default Parameters (TradingView):
+    - length = 18
     """
     
     def __init__(self):
         super().__init__("TRIX")
     
-    @staticmethod
-    @jit(nopython=True)
-    def _calculate_ema(data: np.ndarray, period: int) -> np.ndarray:
-        """Calculate EMA"""
+    def _calculate_ema_safe(self, data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate EMA safely without Numba issues"""
         n = len(data)
-        result = np.empty(n)
+        result = np.full(n, np.nan)
         alpha = 2.0 / (period + 1)
         
-        result[0] = data[0]
-        for i in range(1, n):
-            result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
+        # Find first valid (non-NaN) value
+        first_valid = -1
+        for i in range(n):
+            if not np.isnan(data[i]):
+                first_valid = i
+                break
+        
+        if first_valid == -1:
+            return result
+        
+        result[first_valid] = data[first_valid]
+        
+        for i in range(first_valid + 1, n):
+            if not np.isnan(data[i]):
+                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
+            else:
+                result[i] = result[i - 1]
         
         return result
     
-    def calculate(self, data: Union[np.ndarray, pd.Series, list], period: int = 14) -> Union[np.ndarray, pd.Series]:
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], length: int = 18) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate TRIX
+        Calculate TRIX using TradingView Pine Script v6 formula
         
         Parameters:
         -----------
         data : Union[np.ndarray, pd.Series, list]
             Price data (typically closing prices)
-        period : int, default=14
-            Number of periods for EMA calculation
+        length : int, default=18
+            Number of periods for EMA calculation (TradingView default)
             
         Returns:
         --------
         Union[np.ndarray, pd.Series]
             TRIX values in the same format as input
+            
+        Notes:
+        ------
+        This implementation matches TradingView Pine Script v6:
+        out = 10000 * ta.change(ta.ema(ta.ema(ta.ema(math.log(close), length), length), length))
         """
         validated_data, input_type, index = self.validate_input(data)
-        self.validate_period(period, len(validated_data))
+        self.validate_period(length, len(validated_data))
         
-        # Calculate triple EMA
-        ema1 = self._calculate_ema(validated_data, period)
-        ema2 = self._calculate_ema(ema1, period)
-        ema3 = self._calculate_ema(ema2, period)
+        # Step 1: Calculate natural logarithm of price (math.log(close))
+        log_data = np.log(validated_data)
         
-        # Calculate percentage change of triple EMA
+        # Step 2: Calculate triple EMA of log data
+        # First EMA: ta.ema(math.log(close), length)
+        ema1 = self._calculate_ema_safe(log_data, length)
+        # Second EMA: ta.ema(ta.ema(math.log(close), length), length)
+        ema2 = self._calculate_ema_safe(ema1, length)
+        # Third EMA: ta.ema(ta.ema(ta.ema(math.log(close), length), length), length)
+        ema3 = self._calculate_ema_safe(ema2, length)
+        
+        # Step 3: Calculate change (ta.change) - simple difference
         trix = np.full_like(ema3, np.nan)
         for i in range(1, len(ema3)):
-            if ema3[i - 1] != 0:
-                trix[i] = ((ema3[i] - ema3[i - 1]) / ema3[i - 1]) * 100  # ×100 to express percentage change
+            trix[i] = ema3[i] - ema3[i - 1]  # ta.change() is just the difference
+        
+        # Step 4: Multiply by 10000 (TradingView formula)
+        trix = trix * 10000
         
         return self.format_output(trix, input_type, index)
 
@@ -892,11 +936,14 @@ class StochRSI(BaseIndicator):
 
 class RVI(BaseIndicator):
     """
-    Relative Vigor Index (RVI Oscillator)
+    Relative Vigor Index (TradingView Pine Script Implementation)
     
-    The RVI compares the closing price to the trading range and smooths the result.
+    The RVI compares the closing price to the trading range and smooths the result
+    using SWMA (Symmetrically Weighted Moving Average).
     
-    Formula: RVI = SMA(Close - Open, period) / SMA(High - Low, period)
+    Formula: 
+    rvi = math.sum(ta.swma(close-open), len) / math.sum(ta.swma(high-low), len)
+    sig = ta.swma(rvi)
     """
     
     def __init__(self):
@@ -905,29 +952,39 @@ class RVI(BaseIndicator):
     @staticmethod
     @jit(nopython=True)
     def _calculate_rvi(open_prices: np.ndarray, high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> Tuple[np.ndarray, np.ndarray]:
-        """Numba optimized RVI calculation"""
+        """Numba optimized RVI calculation (TradingView Pine Script formula)"""
         n = len(close)
         rvi = np.full(n, np.nan)
         signal = np.full(n, np.nan)
         
-        # Calculate numerator and denominator
-        numerator = close - open_prices
-        denominator = high - low
+        # Calculate close-open and high-low differences
+        close_open_diff = close - open_prices
+        high_low_diff = high - low
         
-        # Calculate RVI
-        for i in range(period - 1, n):
-            num_sum = np.sum(numerator[i - period + 1:i + 1])
-            den_sum = np.sum(denominator[i - period + 1:i + 1])
+        # Apply SWMA to the differences
+        swma_close_open = _calculate_swma_helper(close_open_diff)
+        swma_high_low = _calculate_swma_helper(high_low_diff)
+        
+        # Calculate RVI using TradingView formula: 
+        # rvi = math.sum(ta.swma(close-open), len) / math.sum(ta.swma(high-low), len)
+        for i in range(period + 2, n):  # +2 because SWMA needs 3 periods to start
+            # Sum of SWMA values over the period
+            numerator_sum = 0.0
+            denominator_sum = 0.0
             
-            if den_sum != 0:
-                rvi[i] = num_sum / den_sum
+            for j in range(i - period + 1, i + 1):
+                if not np.isnan(swma_close_open[j]):
+                    numerator_sum += swma_close_open[j]
+                if not np.isnan(swma_high_low[j]):
+                    denominator_sum += swma_high_low[j]
+            
+            if denominator_sum != 0.0:
+                rvi[i] = numerator_sum / denominator_sum
             else:
                 rvi[i] = 0.0
         
-        # Calculate signal line (4-period weighted moving average of RVI)
-        for i in range(3, n):
-            if not np.isnan(rvi[i]) and not np.isnan(rvi[i-1]) and not np.isnan(rvi[i-2]) and not np.isnan(rvi[i-3]):
-                signal[i] = (rvi[i] + 2*rvi[i-1] + 2*rvi[i-2] + rvi[i-3]) / 6
+        # Calculate signal line using SWMA of RVI (sig = ta.swma(rvi))
+        signal = _calculate_swma_helper(rvi)
         
         return rvi, signal
     
@@ -937,7 +994,7 @@ class RVI(BaseIndicator):
                  close: Union[np.ndarray, pd.Series, list],
                  period: int = 10) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
-        Calculate Relative Vigor Index
+        Calculate Relative Vigor Index (TradingView Pine Script Implementation)
         
         Parameters:
         -----------
@@ -956,6 +1013,8 @@ class RVI(BaseIndicator):
         --------
         Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
             (rvi, signal) in the same format as input
+            Formula: rvi = math.sum(ta.swma(close-open), len) / math.sum(ta.swma(high-low), len)
+                    sig = ta.swma(rvi)
         """
         open_data, input_type, index = self.validate_input(open_prices)
         high_data, _, _ = self.validate_input(high)
@@ -1389,13 +1448,23 @@ class TSI(BaseIndicator):
 
 class VI(BaseIndicator):
     """
-    Vortex Indicator (VI+ and VI-)
+    Vortex Indicator (VI+ and VI-) - TradingView Pine Script v6 Implementation
     
     The Vortex Indicator identifies the start of a new trend or the continuation of an existing trend.
     
-    Formula:
-    VI+ = Sum(|Close - Prior Low|, n) / Sum(True Range, n)
-    VI- = Sum(|Close - Prior High|, n) / Sum(True Range, n)
+    TradingView Pine Script v6 Formula:
+    VMP = math.sum( math.abs( high - low[1]), period_ )
+    VMM = math.sum( math.abs( low - high[1]), period_ )
+    STR = math.sum( ta.atr(1), period_ )
+    VIP = VMP / STR
+    VIM = VMM / STR
+    
+    Where:
+    - VMP (Vortex Movement Positive) = Sum of |high - low[1]|
+    - VMM (Vortex Movement Minus) = Sum of |low - high[1]|
+    - STR = Sum of ATR(1) over period
+    - VIP = VI+ (Positive Vortex Indicator)
+    - VIM = VI- (Minus Vortex Indicator)
     """
     
     def __init__(self):
@@ -1403,36 +1472,58 @@ class VI(BaseIndicator):
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_vi(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> Tuple[np.ndarray, np.ndarray]:
-        """Numba optimized Vortex Indicator calculation"""
+    def _calculate_atr_single(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> np.ndarray:
+        """Calculate single-period ATR (True Range)"""
+        n = len(close)
+        atr = np.full(n, np.nan)
+        
+        atr[0] = high[0] - low[0]  # First value
+        
+        for i in range(1, n):
+            tr = max(high[i] - low[i],
+                    abs(high[i] - close[i - 1]),
+                    abs(low[i] - close[i - 1]))
+            atr[i] = tr
+        
+        return atr
+    
+    @staticmethod
+    def _calculate_vi_tv(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> Tuple[np.ndarray, np.ndarray]:
+        """TradingView Pine Script v6 Vortex Indicator calculation"""
         n = len(close)
         vi_plus = np.full(n, np.nan)
         vi_minus = np.full(n, np.nan)
         
+        # Calculate single-period ATR
+        atr_single = np.full(n, np.nan)
+        atr_single[0] = high[0] - low[0]
+        for i in range(1, n):
+            tr = max(high[i] - low[i],
+                    abs(high[i] - close[i - 1]),
+                    abs(low[i] - close[i - 1]))
+            atr_single[i] = tr
+        
         for i in range(period, n):
-            sum_vm_plus = 0.0
-            sum_vm_minus = 0.0
-            sum_tr = 0.0
+            # TradingView formula implementation
+            vmp = 0.0  # Sum of |high - low[1]|
+            vmm = 0.0  # Sum of |low - high[1]|
+            str_sum = 0.0  # Sum of ATR(1)
             
             for j in range(period):
                 idx = i - period + j + 1
                 
-                # Vortex Movement
-                vm_plus = abs(close[idx] - low[idx - 1])
-                vm_minus = abs(close[idx] - high[idx - 1])
+                # VMP = sum(abs(high - low[1]))
+                vmp += abs(high[idx] - low[idx - 1])
                 
-                # True Range
-                tr = max(high[idx] - low[idx],
-                        abs(high[idx] - close[idx - 1]),
-                        abs(low[idx] - close[idx - 1]))
+                # VMM = sum(abs(low - high[1])) 
+                vmm += abs(low[idx] - high[idx - 1])
                 
-                sum_vm_plus += vm_plus
-                sum_vm_minus += vm_minus
-                sum_tr += tr
+                # STR = sum(atr(1))
+                str_sum += atr_single[idx]
             
-            if sum_tr > 0:
-                vi_plus[i] = sum_vm_plus / sum_tr
-                vi_minus[i] = sum_vm_minus / sum_tr
+            if str_sum > 0:
+                vi_plus[i] = vmp / str_sum  # VIP = VMP / STR
+                vi_minus[i] = vmm / str_sum  # VIM = VMM / STR
             else:
                 vi_plus[i] = 0.0
                 vi_minus[i] = 0.0
@@ -1444,7 +1535,7 @@ class VI(BaseIndicator):
                  close: Union[np.ndarray, pd.Series, list],
                  period: int = 14) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]:
         """
-        Calculate Vortex Indicator
+        Calculate Vortex Indicator - TradingView Pine Script v6 Implementation
         
         Parameters:
         -----------
@@ -1455,12 +1546,21 @@ class VI(BaseIndicator):
         close : Union[np.ndarray, pd.Series, list]
             Closing prices
         period : int, default=14
-            Period for VI calculation
+            Period for VI calculation (TradingView default)
             
         Returns:
         --------
         Union[Tuple[np.ndarray, np.ndarray], Tuple[pd.Series, pd.Series]]
             (vi_plus, vi_minus) in the same format as input
+            
+        Notes:
+        ------
+        TradingView Pine Script v6 Formula:
+        VMP = math.sum( math.abs( high - low[1]), period_ )
+        VMM = math.sum( math.abs( low - high[1]), period_ )
+        STR = math.sum( ta.atr(1), period_ )
+        VIP = VMP / STR
+        VIM = VMM / STR
         """
         high_data, input_type, index = self.validate_input(high)
         low_data, _, _ = self.validate_input(low)
@@ -1469,7 +1569,7 @@ class VI(BaseIndicator):
         high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         self.validate_period(period + 1, len(close_data))
         
-        vi_plus, vi_minus = self._calculate_vi(high_data, low_data, close_data, period)
+        vi_plus, vi_minus = self._calculate_vi_tv(high_data, low_data, close_data, period)
         
         results = (vi_plus, vi_minus)
         return self.format_multiple_outputs(results, input_type, index)
@@ -1585,11 +1685,25 @@ class GatorOscillator(BaseIndicator):
 
 class STC(BaseIndicator):
     """
-    Schaff Trend Cycle (STC)
+    Schaff Trend Cycle (STC) - TradingView Pine Script v4 Implementation
     
     STC is a cyclical oscillator that combines slow stochastics and the MACD.
+    Based on TradingView Pine Script v4 implementation by Alex Orekhov (everget).
     
-    Formula: Applies stochastic calculation twice - first to MACD values, then to the result.
+    TradingView Formula:
+    macd = ema(src, fastLength) - ema(src, slowLength)
+    k = nz(stoch(macd, macd, macd, cycleLength))
+    d = ema(k, d1Length)
+    kd = nz(stoch(d, d, d, cycleLength))
+    stc = ema(kd, d2Length)
+    stc := max(min(stc, 100), 0)
+    
+    Default Parameters (TradingView):
+    - fastLength = 23 (MACD Fast Length)
+    - slowLength = 50 (MACD Slow Length)
+    - cycleLength = 10 (Cycle Length)
+    - d1Length = 3 (1st %D Length)
+    - d2Length = 3 (2nd %D Length)
     """
     
     def __init__(self):
@@ -1597,102 +1711,247 @@ class STC(BaseIndicator):
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_ema(data: np.ndarray, period: int) -> np.ndarray:
-        """Calculate EMA"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        alpha = 2.0 / (period + 1)
-        
-        # Find first valid value
-        first_valid = -1
-        for i in range(n):
-            if not np.isnan(data[i]):
-                first_valid = i
-                break
-        
-        if first_valid == -1:
-            return result
-        
-        result[first_valid] = data[first_valid]
-        
-        for i in range(first_valid + 1, n):
-            if not np.isnan(data[i]):
-                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
-            else:
-                result[i] = result[i - 1]
-        
-        return result
-    
-    @staticmethod
-    @jit(nopython=True)
-    def _stochastic_calculation(data: np.ndarray, period: int, smooth: int) -> np.ndarray:
-        """Apply stochastic calculation to any data series"""
+    def _calculate_stochastic(data: np.ndarray, period: int) -> np.ndarray:
+        """Calculate stochastic oscillator exactly like TradingView stoch() function"""
         n = len(data)
         result = np.full(n, np.nan)
         
         for i in range(period - 1, n):
             # Find highest and lowest values in the period
-            window = data[i - period + 1:i + 1]
-            valid_window = window[~np.isnan(window)]
+            window_start = i - period + 1
+            highest = -np.inf
+            lowest = np.inf
             
-            if len(valid_window) > 0:
-                highest = np.max(valid_window)
-                lowest = np.min(valid_window)
-                
-                if highest != lowest:
-                    result[i] = ((data[i] - lowest) / (highest - lowest)) * 100
-                else:
-                    result[i] = 50.0  # Middle value when no range
-        
-        # Smooth the result
-        if smooth > 1:
-            smoothed = np.full(n, np.nan)
-            for i in range(smooth - 1, n):
-                if not np.isnan(result[i]):
-                    window = result[i - smooth + 1:i + 1]
-                    valid_values = window[~np.isnan(window)]
-                    if len(valid_values) >= smooth:
-                        smoothed[i] = np.mean(valid_values[-smooth:])
-            result = smoothed
+            # Calculate highest and lowest in the window
+            for j in range(window_start, i + 1):
+                if not np.isnan(data[j]):
+                    if data[j] > highest:
+                        highest = data[j]
+                    if data[j] < lowest:
+                        lowest = data[j]
+            
+            # Calculate stochastic value
+            if highest != lowest and not np.isnan(data[i]):
+                result[i] = ((data[i] - lowest) / (highest - lowest)) * 100.0
+            elif highest == lowest:
+                result[i] = 50.0  # When no range, default to middle
         
         return result
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
-                 fast: int = 23, slow: int = 50, cycle: int = 10, smooth1: int = 3, smooth2: int = 3) -> Union[np.ndarray, pd.Series]:
+                 fast_length: int = 23, slow_length: int = 50, cycle_length: int = 10, 
+                 d1_length: int = 3, d2_length: int = 3) -> Union[np.ndarray, pd.Series]:
         """
-        Calculate Schaff Trend Cycle
+        Calculate Schaff Trend Cycle using TradingView Pine Script v4 formula
         
         Parameters:
         -----------
         data : Union[np.ndarray, pd.Series, list]
             Price data (typically closing prices)
-        fast : int, default=23
-            Fast EMA period
-        slow : int, default=50
-            Slow EMA period
-        cycle : int, default=10
-            Cycle period for stochastic calculations
-        smooth1 : int, default=3
-            First smoothing period
-        smooth2 : int, default=3
-            Second smoothing period
+        fast_length : int, default=23
+            MACD Fast Length (TradingView fastLength)
+        slow_length : int, default=50
+            MACD Slow Length (TradingView slowLength)
+        cycle_length : int, default=10
+            Cycle Length for stochastic calculations (TradingView cycleLength)
+        d1_length : int, default=3
+            1st %D Length - EMA smoothing period (TradingView d1Length)
+        d2_length : int, default=3
+            2nd %D Length - EMA smoothing period (TradingView d2Length)
             
         Returns:
         --------
         Union[np.ndarray, pd.Series]
-            STC values in the same format as input
+            STC values in the same format as input (0-100 range)
+            
+        Notes:
+        ------
+        This implementation matches TradingView Pine Script v4:
+        macd = ema(src, fastLength) - ema(src, slowLength)
+        k = nz(stoch(macd, macd, macd, cycleLength))
+        d = ema(k, d1Length)
+        kd = nz(stoch(d, d, d, cycleLength))
+        stc = ema(kd, d2Length)
+        stc := max(min(stc, 100), 0)
         """
         validated_data, input_type, index = self.validate_input(data)
         
-        # Calculate MACD
-        fast_ema = self._calculate_ema(validated_data, fast)
-        slow_ema = self._calculate_ema(validated_data, slow)
+        # Step 1: Calculate MACD
+        # macd = ema(src, fastLength) - ema(src, slowLength)
+        fast_ema = ema(validated_data, fast_length)
+        slow_ema = ema(validated_data, slow_length)
         macd = fast_ema - slow_ema
         
-        # First stochastic calculation on MACD
-        stoch1 = self._stochastic_calculation(macd, cycle, smooth1)
+        # Step 2: First stochastic calculation on MACD
+        # k = nz(stoch(macd, macd, macd, cycleLength))
+        k = self._calculate_stochastic(macd, cycle_length)
+        # Handle nz() - replace NaN with 0
+        k = np.where(np.isnan(k), 0.0, k)
         
-        # Second stochastic calculation on the result
-        stc = self._stochastic_calculation(stoch1, cycle, smooth2)
+        # Step 3: Smooth with EMA
+        # d = ema(k, d1Length)
+        d = ema(k, d1_length)
+        
+        # Step 4: Second stochastic calculation
+        # kd = nz(stoch(d, d, d, cycleLength))
+        kd = self._calculate_stochastic(d, cycle_length)
+        # Handle nz() - replace NaN with 0
+        kd = np.where(np.isnan(kd), 0.0, kd)
+        
+        # Step 5: Final EMA smoothing
+        # stc = ema(kd, d2Length)
+        stc = ema(kd, d2_length)
+        
+        # Step 6: Clamp between 0 and 100
+        # stc := max(min(stc, 100), 0)
+        stc = np.clip(stc, 0.0, 100.0)
         
         return self.format_output(stc, input_type, index)
+
+
+class Coppock(BaseIndicator):
+    """
+    Coppock Curve - TradingView Pine Script v6 Implementation
+    
+    The Coppock Curve is a long-term momentum indicator primarily used for major stock indices.
+    It's calculated as a Weighted Moving Average of the sum of Rate of Change values over two periods.
+    
+    Formula: 
+    curve = ta.wma(ta.roc(source, longRoCLength) + ta.roc(source, shortRoCLength), wmaLength)
+    
+    Default TradingView Parameters:
+    - WMA Length: 10
+    - Long RoC Length: 14  
+    - Short RoC Length: 11
+    """
+    
+    def __init__(self):
+        super().__init__("Coppock")
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_roc_for_coppock(data: np.ndarray, period: int) -> np.ndarray:
+        """Rate of Change calculation for Coppock (Numba optimized)"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        for i in range(period, n):
+            if data[i - period] != 0:
+                result[i] = ((data[i] - data[i - period]) / data[i - period]) * 100
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_wma_for_coppock(data: np.ndarray, period: int) -> np.ndarray:
+        """Weighted Moving Average calculation for Coppock (Numba optimized)"""
+        n = len(data)
+        result = np.full(n, np.nan)
+        
+        # Calculate weight sum for normalization
+        weight_sum = 0.0
+        for i in range(1, period + 1):
+            weight_sum += i
+        
+        for i in range(period - 1, n):
+            if not np.isnan(data[i]):
+                weighted_sum = 0.0
+                valid_weights = 0.0
+                
+                # Calculate weighted sum
+                for j in range(period):
+                    idx = i - period + 1 + j
+                    if not np.isnan(data[idx]):
+                        weight = j + 1  # Weights: 1, 2, 3, ..., period
+                        weighted_sum += data[idx] * weight
+                        valid_weights += weight
+                
+                if valid_weights > 0:
+                    result[i] = weighted_sum / valid_weights
+        
+        return result
+    
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_coppock(data: np.ndarray, wma_length: int, 
+                          long_roc_length: int, short_roc_length: int) -> np.ndarray:
+        """Coppock Curve calculation (Numba optimized)"""
+        n = len(data)
+        
+        # Calculate ROC for both periods - inline the ROC calculation
+        long_roc = np.full(n, np.nan)
+        for i in range(long_roc_length, n):
+            if data[i - long_roc_length] != 0:
+                long_roc[i] = ((data[i] - data[i - long_roc_length]) / data[i - long_roc_length]) * 100
+        
+        short_roc = np.full(n, np.nan)
+        for i in range(short_roc_length, n):
+            if data[i - short_roc_length] != 0:
+                short_roc[i] = ((data[i] - data[i - short_roc_length]) / data[i - short_roc_length]) * 100
+        
+        # Sum the ROC values
+        roc_sum = np.full(n, np.nan)
+        for i in range(n):
+            if not np.isnan(long_roc[i]) and not np.isnan(short_roc[i]):
+                roc_sum[i] = long_roc[i] + short_roc[i]
+        
+        # Apply WMA to the sum - inline the WMA calculation
+        result = np.full(n, np.nan)
+        
+        for i in range(wma_length - 1, n):
+            if not np.isnan(roc_sum[i]):
+                weighted_sum = 0.0
+                valid_weights = 0.0
+                
+                # Calculate weighted sum
+                for j in range(wma_length):
+                    idx = i - wma_length + 1 + j
+                    if not np.isnan(roc_sum[idx]):
+                        weight = j + 1  # Weights: 1, 2, 3, ..., wma_length
+                        weighted_sum += roc_sum[idx] * weight
+                        valid_weights += weight
+                
+                if valid_weights > 0:
+                    result[i] = weighted_sum / valid_weights
+        
+        return result
+    
+    def calculate(self, data: Union[np.ndarray, pd.Series, list], 
+                  wma_length: int = 10, long_roc_length: int = 14, 
+                  short_roc_length: int = 11) -> Union[np.ndarray, pd.Series]:
+        """
+        Calculate Coppock Curve
+        
+        Parameters:
+        -----------
+        data : Union[np.ndarray, pd.Series, list]
+            Price data (typically closing prices)
+        wma_length : int, default=10
+            WMA Length for final smoothing (TradingView default)
+        long_roc_length : int, default=14
+            Long RoC Length (TradingView default)  
+        short_roc_length : int, default=11
+            Short RoC Length (TradingView default)
+            
+        Returns:
+        --------
+        Union[np.ndarray, pd.Series]
+            Coppock Curve values in the same format as input
+            
+        Notes:
+        ------
+        TradingView Pine Script v6 Formula:
+        curve = ta.wma(ta.roc(source, longRoCLength) + ta.roc(source, shortRoCLength), wmaLength)
+        
+        Interpretation:
+        - Values above zero indicate bullish momentum
+        - Values below zero indicate bearish momentum
+        - Zero crossovers provide buy/sell signals
+        - Primarily used for long-term trend analysis
+        """
+        validated_data, input_type, index = self.validate_input(data)
+        
+        result = self._calculate_coppock(validated_data, wma_length, 
+                                       long_roc_length, short_roc_length)
+        
+        return self.format_output(result, input_type, index)

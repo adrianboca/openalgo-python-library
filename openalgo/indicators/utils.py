@@ -852,3 +852,202 @@ def ulcer_index_optimized(data: np.ndarray, period: int) -> np.ndarray:
         result[i] = np.sqrt(sum_squared_drawdown / period) * 100
     
     return result
+
+
+@njit(fastmath=True, cache=True)
+def exrem(primary: np.ndarray, secondary: np.ndarray) -> np.ndarray:
+    """
+    Excess Removal function - eliminates excessive signals
+    
+    Parameters:
+    -----------
+    primary : np.ndarray
+        Primary signal array (boolean-like)
+    secondary : np.ndarray
+        Secondary signal array (boolean-like)
+        
+    Returns:
+    --------
+    np.ndarray
+        Boolean array with excess signals removed
+    """
+    n = len(primary)
+    result = np.zeros(n, dtype=np.bool_)
+    active = False
+    
+    for i in range(n):
+        if not active and primary[i]:
+            result[i] = True
+            active = True
+        elif secondary[i]:
+            active = False
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def flip(primary: np.ndarray, secondary: np.ndarray) -> np.ndarray:
+    """
+    Flip function - creates a toggle state based on two signals
+    
+    Parameters:
+    -----------
+    primary : np.ndarray
+        Primary signal array (boolean-like)
+    secondary : np.ndarray
+        Secondary signal array (boolean-like)
+        
+    Returns:
+    --------
+    np.ndarray
+        Boolean array representing flip state
+    """
+    n = len(primary)
+    result = np.zeros(n, dtype=np.bool_)
+    active = False
+    
+    for i in range(n):
+        if primary[i]:
+            active = True
+        elif secondary[i]:
+            active = False
+        result[i] = active
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def valuewhen(expr: np.ndarray, array: np.ndarray, n: int = 1) -> np.ndarray:
+    """
+    Returns the value of array when expr was true for the nth most recent time
+    
+    Parameters:
+    -----------
+    expr : np.ndarray
+        Expression array (boolean-like)
+    array : np.ndarray
+        Value array to sample from
+    n : int, default=1
+        Which occurrence to get (1 = most recent, 2 = second most recent, etc.)
+        
+    Returns:
+    --------
+    np.ndarray
+        Array of values when condition was true
+    """
+    length = len(expr)
+    result = np.full(length, np.nan)
+    
+    # Pre-allocate arrays for true indices tracking
+    max_lookback = min(1000, length)  # Limit memory usage
+    true_indices = np.empty(max_lookback, dtype=np.int64)
+    true_count = 0
+    
+    for i in range(length):
+        # Add current index if expr is true
+        if expr[i]:
+            # Shift existing indices if we're at capacity
+            if true_count >= max_lookback:
+                for j in range(max_lookback - 1):
+                    true_indices[j] = true_indices[j + 1]
+                true_indices[max_lookback - 1] = i
+            else:
+                true_indices[true_count] = i
+                true_count += 1
+        
+        # Find the nth most recent true occurrence
+        if true_count >= n:
+            target_idx = true_indices[true_count - n]
+            result[i] = array[target_idx]
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def rising(data: np.ndarray, length: int) -> np.ndarray:
+    """
+    Check if data is rising (current value > value n periods ago)
+    
+    Parameters:
+    -----------
+    data : np.ndarray
+        Input data series
+    length : int
+        Number of periods to look back
+        
+    Returns:
+    --------
+    np.ndarray
+        Boolean array indicating rising periods
+    """
+    n = len(data)
+    result = np.zeros(n, dtype=np.bool_)
+    
+    for i in range(length, n):
+        if not np.isnan(data[i]) and not np.isnan(data[i - length]):
+            result[i] = data[i] > data[i - length]
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def falling(data: np.ndarray, length: int) -> np.ndarray:
+    """
+    Check if data is falling (current value < value n periods ago)
+    
+    Parameters:
+    -----------
+    data : np.ndarray
+        Input data series
+    length : int
+        Number of periods to look back
+        
+    Returns:
+    --------
+    np.ndarray
+        Boolean array indicating falling periods
+    """
+    n = len(data)
+    result = np.zeros(n, dtype=np.bool_)
+    
+    for i in range(length, n):
+        if not np.isnan(data[i]) and not np.isnan(data[i - length]):
+            result[i] = data[i] < data[i - length]
+    
+    return result
+
+
+@njit(fastmath=True, cache=True)
+def cross(series1: np.ndarray, series2: np.ndarray) -> np.ndarray:
+    """
+    Check if series1 crosses series2 (either direction)
+    Combines crossover and crossunder functionality
+    
+    Parameters:
+    -----------
+    series1 : np.ndarray
+        First series
+    series2 : np.ndarray
+        Second series
+        
+    Returns:
+    --------
+    np.ndarray
+        Boolean array indicating cross points (both over and under)
+    """
+    n = len(series1)
+    result = np.zeros(n, dtype=np.bool_)
+    
+    for i in range(1, n):
+        if (not np.isnan(series1[i]) and not np.isnan(series2[i]) and
+            not np.isnan(series1[i-1]) and not np.isnan(series2[i-1])):
+            
+            # Check for crossover (series1 crosses above series2)
+            crossover_condition = (series1[i] > series2[i] and series1[i-1] <= series2[i-1])
+            
+            # Check for crossunder (series1 crosses below series2)  
+            crossunder_condition = (series1[i] < series2[i] and series1[i-1] >= series2[i-1])
+            
+            result[i] = crossover_condition or crossunder_condition
+    
+    return result
