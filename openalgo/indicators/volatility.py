@@ -752,35 +752,6 @@ class MASS(BaseIndicator):
     def __init__(self):
         super().__init__("Mass Index")
     
-    @staticmethod
-    @jit(nopython=True) 
-    def _calculate_ema(data: np.ndarray, period: int) -> np.ndarray:
-        """Calculate EMA with NaN handling - Pine Script style"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        alpha = 2.0 / (period + 1)
-        
-        # Find first valid value to start with
-        first_valid_idx = -1
-        for i in range(n):
-            if not np.isnan(data[i]):
-                first_valid_idx = i
-                break
-        
-        if first_valid_idx == -1:
-            return result
-            
-        # Initialize EMA with first valid value (Pine Script behavior)
-        result[first_valid_idx] = data[first_valid_idx]
-        
-        # Continue EMA calculation
-        for i in range(first_valid_idx + 1, n):
-            if not np.isnan(data[i]):
-                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
-            else:
-                result[i] = result[i - 1]  # Carry forward last value
-        
-        return result
     
     @staticmethod
     @jit(nopython=True)
@@ -826,26 +797,18 @@ class MASS(BaseIndicator):
         # Calculate high-low range (span)
         span = high_data - low_data
         
-        # Calculate first EMA of span with period 9
-        ema1 = self._calculate_ema(span, 9)
+        # Calculate first EMA of span with period 9 using optimized utility
+        ema1 = ema(span, 9)
         
-        # Calculate second EMA of first EMA with period 9
-        ema2 = self._calculate_ema(ema1, 9)
+        # Calculate second EMA of first EMA with period 9 using optimized utility
+        ema2 = ema(ema1, 9)
         
         # Calculate ratio (ema1 / ema2)
         ratio = np.where((ema2 != 0) & (~np.isnan(ema1)) & (~np.isnan(ema2)), 
                         ema1 / ema2, np.nan)
         
-        # Calculate sum of ratio over length periods (equivalent to Pine Script math.sum)
-        result = np.full_like(ratio, np.nan)
-        
-        # Start calculating once we have at least 'length' valid ratio values
-        for i in range(length - 1, len(ratio)):
-            window = ratio[i - length + 1:i + 1]
-            # Sum valid values (Pine Script math.sum includes NaN handling)
-            valid_values = window[~np.isnan(window)]
-            if len(valid_values) > 0:  # Any valid values
-                result[i] = np.sum(valid_values)
+        # Calculate sum of ratio over length periods using O(N) rolling sum
+        result = rolling_sum(ratio, length)
         
         return self.format_output(result, input_type, index)
 
@@ -1247,44 +1210,6 @@ class UlcerIndex(BaseIndicator):
     def __init__(self):
         super().__init__("Ulcer Index")
     
-    def _calculate_ema_safe(self, data: np.ndarray, period: int) -> np.ndarray:
-        """Calculate EMA safely without Numba issues"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        alpha = 2.0 / (period + 1)
-        
-        # Find first valid (non-NaN) value
-        first_valid = -1
-        for i in range(n):
-            if not np.isnan(data[i]):
-                first_valid = i
-                break
-        
-        if first_valid == -1:
-            return result
-        
-        result[first_valid] = data[first_valid]
-        
-        for i in range(first_valid + 1, n):
-            if not np.isnan(data[i]):
-                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
-            else:
-                result[i] = result[i - 1]
-        
-        return result
-    
-    def _calculate_sma_safe(self, data: np.ndarray, period: int) -> np.ndarray:
-        """Calculate SMA safely"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        
-        for i in range(period - 1, n):
-            window = data[i - period + 1:i + 1]
-            valid_values = window[~np.isnan(window)]
-            if len(valid_values) == period:
-                result[i] = np.mean(valid_values)
-        
-        return result
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list],
                  length: int = 14, smooth_length: int = 14, signal_length: int = 52, 
@@ -1325,41 +1250,35 @@ class UlcerIndex(BaseIndicator):
         self.validate_period(smooth_length, len(validated_data))
         self.validate_period(signal_length, len(validated_data))
         
-        # Step 1: Calculate highest over the length period
+        # Step 1: Calculate highest over the length period using O(N) utility
         # highest = highest(src, length)
-        n = len(validated_data)
-        highest_values = np.full(n, np.nan)
+        highest_values = highest(validated_data, length)
         
-        for i in range(length - 1, n):
-            window = validated_data[i - length + 1:i + 1]
-            highest_values[i] = np.max(window)
-        
-        # Step 2: Calculate percentage drawdown
+        # Step 2: Calculate percentage drawdown - vectorized
         # drawdown = 100 * (src - highest) / highest
-        drawdown = np.full(n, np.nan)
-        for i in range(n):
-            if not np.isnan(highest_values[i]) and highest_values[i] != 0:
-                drawdown[i] = 100 * (validated_data[i] - highest_values[i]) / highest_values[i]
+        drawdown = np.where((~np.isnan(highest_values)) & (highest_values != 0),
+                           100 * (validated_data - highest_values) / highest_values, 
+                           np.nan)
         
-        # Step 3: Calculate squared drawdowns
+        # Step 3: Calculate squared drawdowns - vectorized
         # pow(drawdown, 2)
         squared_drawdown = np.power(drawdown, 2)
         
-        # Step 4: Calculate SMA of squared drawdowns
+        # Step 4: Calculate SMA of squared drawdowns using O(N) utility
         # sma(pow(drawdown, 2), smoothLength)
-        sma_squared_dd = self._calculate_sma_safe(squared_drawdown, smooth_length)
+        sma_squared_dd = sma(squared_drawdown, smooth_length)
         
-        # Step 5: Calculate Ulcer Index
+        # Step 5: Calculate Ulcer Index - vectorized
         # ulcer = sqrt(sma(pow(drawdown, 2), smoothLength))
         ulcer = np.sqrt(sma_squared_dd)
         
         if return_signal:
-            # Step 6: Calculate signal line
+            # Step 6: Calculate signal line using optimized utilities
             # signal = signalType == "SMA" ? sma(ulcer, signalLength) : ema(ulcer, signalLength)
             if signal_type.upper() == "SMA":
-                signal = self._calculate_sma_safe(ulcer, signal_length)
+                signal = sma(ulcer, signal_length)
             else:  # EMA
-                signal = self._calculate_ema_safe(ulcer, signal_length)
+                signal = ema(ulcer, signal_length)
             
             # Format outputs
             ulcer_formatted = self.format_output(ulcer, input_type, index)

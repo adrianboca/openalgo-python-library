@@ -435,6 +435,63 @@ class LargeDataSpeedTest:
             print(f"   [MED] Medium (10-100ms):     {len(medium):3d} indicators")
             print(f"   [SLOW] Slow (> 100ms):        {len(slow):3d} indicators")
         
+        # Optimized indicators performance
+        self.report_optimized_indicators_performance(successful)
+        
+    def report_optimized_indicators_performance(self, successful):
+        """Report performance of optimized high priority indicators"""
+        print(f"\n[OPTIMIZED] HIGH PRIORITY OPTIMIZED INDICATORS")
+        print("-" * 70)
+        
+        # Expected performance before optimization (from audit04.md)
+        optimized_indicators = {
+            'variance': {'name': 'VAR (Variance)', 'baseline_warm': 24.55},
+            'vi': {'name': 'VI (Vortex Indicator)', 'baseline_warm': 5.78}, 
+            'ulcerindex': {'name': 'UI (Ulcer Index)', 'baseline_warm': 5.35}
+        }
+        
+        print(f"   These indicators were optimized from O(N*period) to O(N) complexity:")
+        print(f"   {'Indicator':<20} {'Before (s)':<12} {'After (s)':<12} {'Improvement':<12}")
+        print(f"   {'-'*60}")
+        
+        total_improvement = 1.0
+        optimized_count = 0
+        
+        for func_name, info in optimized_indicators.items():
+            result = None
+            for r in successful:
+                if func_name in self.results and self.results[func_name]['display_name'] == info['name']:
+                    result = r
+                    break
+            
+            if result:
+                current_time = result['warm_time']
+                baseline_time = info['baseline_warm']
+                improvement = baseline_time / current_time if current_time > 0 else float('inf')
+                
+                total_improvement *= improvement
+                optimized_count += 1
+                
+                print(f"   {info['name']:<20} {baseline_time:<12.2f} {current_time:<12.4f} {improvement:<12.1f}x")
+            else:
+                print(f"   {info['name']:<20} {info['baseline_warm']:<12.2f} {'ERROR':<12} {'N/A':<12}")
+        
+        if optimized_count > 0:
+            geometric_mean = total_improvement ** (1.0 / optimized_count)
+            print(f"\n   [SUMMARY] Optimization Results:")
+            print(f"      - Successfully optimized: {optimized_count}/3 indicators")
+            print(f"      - Geometric mean speedup: {geometric_mean:.1f}x faster")
+            print(f"      - Performance improvement: {(1 - 1/geometric_mean)*100:.1f}% reduction in execution time")
+            
+            if geometric_mean >= 10:
+                print(f"      - [EXCELLENT] Achieved 10x+ speedup target!")
+            elif geometric_mean >= 5:
+                print(f"      - [GOOD] Achieved significant speedup!")
+            else:
+                print(f"      - [MODERATE] Some improvement achieved.")
+        else:
+            print(f"   [WARNING] No optimized indicators found in test results")
+        
         # Save results to file
         self.save_results_to_file()
         

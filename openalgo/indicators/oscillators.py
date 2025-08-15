@@ -155,31 +155,6 @@ class TRIX(BaseIndicator):
     def __init__(self):
         super().__init__("TRIX")
     
-    def _calculate_ema_safe(self, data: np.ndarray, period: int) -> np.ndarray:
-        """Calculate EMA safely without Numba issues"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        alpha = 2.0 / (period + 1)
-        
-        # Find first valid (non-NaN) value
-        first_valid = -1
-        for i in range(n):
-            if not np.isnan(data[i]):
-                first_valid = i
-                break
-        
-        if first_valid == -1:
-            return result
-        
-        result[first_valid] = data[first_valid]
-        
-        for i in range(first_valid + 1, n):
-            if not np.isnan(data[i]):
-                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
-            else:
-                result[i] = result[i - 1]
-        
-        return result
     
     def calculate(self, data: Union[np.ndarray, pd.Series, list], length: int = 18) -> Union[np.ndarray, pd.Series]:
         """
@@ -208,13 +183,13 @@ class TRIX(BaseIndicator):
         # Step 1: Calculate natural logarithm of price (math.log(close))
         log_data = np.log(validated_data)
         
-        # Step 2: Calculate triple EMA of log data
+        # Step 2: Calculate triple EMA of log data using optimized utility
         # First EMA: ta.ema(math.log(close), length)
-        ema1 = self._calculate_ema_safe(log_data, length)
+        ema1 = ema(log_data, length)
         # Second EMA: ta.ema(ta.ema(math.log(close), length), length)
-        ema2 = self._calculate_ema_safe(ema1, length)
+        ema2 = ema(ema1, length)
         # Third EMA: ta.ema(ta.ema(ta.ema(math.log(close), length), length), length)
-        ema3 = self._calculate_ema_safe(ema2, length)
+        ema3 = ema(ema2, length)
         
         # Step 3: Calculate change (ta.change) - simple difference
         trix = np.full_like(ema3, np.nan)
@@ -1488,42 +1463,43 @@ class VI(BaseIndicator):
         return atr
     
     @staticmethod
-    def _calculate_vi_tv(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> Tuple[np.ndarray, np.ndarray]:
-        """TradingView Pine Script v6 Vortex Indicator calculation"""
+    def _calculate_vi_tv_optimized(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Optimized TradingView Pine Script v6 Vortex Indicator calculation using O(N) rolling sums"""
         n = len(close)
         vi_plus = np.full(n, np.nan)
         vi_minus = np.full(n, np.nan)
         
-        # Calculate single-period ATR
+        # Pre-calculate VMP, VMM, and ATR arrays
+        vmp_values = np.full(n, np.nan)
+        vmm_values = np.full(n, np.nan)
         atr_single = np.full(n, np.nan)
+        
+        # First period calculations
         atr_single[0] = high[0] - low[0]
+        
         for i in range(1, n):
+            # VMP = abs(high - low[1])
+            vmp_values[i] = abs(high[i] - low[i - 1])
+            
+            # VMM = abs(low - high[1]) 
+            vmm_values[i] = abs(low[i] - high[i - 1])
+            
+            # ATR(1) = True Range
             tr = max(high[i] - low[i],
                     abs(high[i] - close[i - 1]),
                     abs(low[i] - close[i - 1]))
             atr_single[i] = tr
         
+        # Use O(N) rolling sums for VMP, VMM, and STR
+        vmp_rolling = rolling_sum(vmp_values, period)
+        vmm_rolling = rolling_sum(vmm_values, period)
+        str_rolling = rolling_sum(atr_single, period)
+        
+        # Calculate VI+ and VI- using the rolling sums
         for i in range(period, n):
-            # TradingView formula implementation
-            vmp = 0.0  # Sum of |high - low[1]|
-            vmm = 0.0  # Sum of |low - high[1]|
-            str_sum = 0.0  # Sum of ATR(1)
-            
-            for j in range(period):
-                idx = i - period + j + 1
-                
-                # VMP = sum(abs(high - low[1]))
-                vmp += abs(high[idx] - low[idx - 1])
-                
-                # VMM = sum(abs(low - high[1])) 
-                vmm += abs(low[idx] - high[idx - 1])
-                
-                # STR = sum(atr(1))
-                str_sum += atr_single[idx]
-            
-            if str_sum > 0:
-                vi_plus[i] = vmp / str_sum  # VIP = VMP / STR
-                vi_minus[i] = vmm / str_sum  # VIM = VMM / STR
+            if str_rolling[i] > 0 and not np.isnan(str_rolling[i]):
+                vi_plus[i] = vmp_rolling[i] / str_rolling[i]  # VIP = VMP / STR
+                vi_minus[i] = vmm_rolling[i] / str_rolling[i]  # VIM = VMM / STR
             else:
                 vi_plus[i] = 0.0
                 vi_minus[i] = 0.0
@@ -1569,7 +1545,7 @@ class VI(BaseIndicator):
         high_data, low_data, close_data = self.align_arrays(high_data, low_data, close_data)
         self.validate_period(period + 1, len(close_data))
         
-        vi_plus, vi_minus = self._calculate_vi_tv(high_data, low_data, close_data, period)
+        vi_plus, vi_minus = self._calculate_vi_tv_optimized(high_data, low_data, close_data, period)
         
         results = (vi_plus, vi_minus)
         return self.format_multiple_outputs(results, input_type, index)

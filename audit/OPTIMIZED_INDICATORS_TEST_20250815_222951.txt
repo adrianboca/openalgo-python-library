@@ -1,0 +1,33 @@
+OpenAlgo Optimized Indicators Performance Test Results
+============================================================
+Test Date: 2025-08-15 22:29:51
+Data Points: 1,000,000
+Memory Usage: 308.00 MB
+
+VAR:
+  Status: SUCCESS
+  Average Time: 0.267135 seconds
+  Min Time: 0.031955 seconds
+  Max Time: 0.729585 seconds
+  Std Deviation: 0.327017 seconds
+  Result Shape: (1000000,)
+  Consistent: True
+
+VI:
+  Status: SUCCESS
+  Average Time: 2.315423 seconds
+  Min Time: 2.242254 seconds
+  Max Time: 2.377489 seconds
+  Std Deviation: 0.055765 seconds
+  Result Shape: ((1000000,), (1000000,))
+  Consistent: True
+
+UI:
+  Status: SUCCESS
+  Average Time: 0.076087 seconds
+  Min Time: 0.023214 seconds
+  Max Time: 0.175835 seconds
+  Std Deviation: 0.070575 seconds
+  Result Shape: (1000000,)
+  Consistent: True
+

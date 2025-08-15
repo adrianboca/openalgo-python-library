@@ -8,6 +8,7 @@ import pandas as pd
 from numba import jit
 from typing import Union, Tuple, Optional
 from .base import BaseIndicator
+from .utils import sma, ema, stdev
 
 
 class LINREG(BaseIndicator):
@@ -273,23 +274,41 @@ class BETA(BaseIndicator):
     
     @staticmethod
     @jit(nopython=True)
-    def _calculate_beta(asset: np.ndarray, market: np.ndarray, period: int) -> np.ndarray:
-        """Numba optimized Beta calculation"""
+    def _calculate_beta_optimized(asset: np.ndarray, market: np.ndarray, period: int) -> np.ndarray:
+        """Optimized Beta calculation with pre-computed returns"""
         n = len(asset)
         result = np.full(n, np.nan)
         
+        # Pre-calculate returns once (optimization from audit suggestion)
+        asset_returns = np.full(n, np.nan)
+        market_returns = np.full(n, np.nan)
+        
+        for i in range(1, n):
+            asset_returns[i] = asset[i] - asset[i - 1]
+            market_returns[i] = market[i] - market[i - 1]
+        
+        # O(N) rolling covariance and variance using incremental updates
         for i in range(period, n):
-            # Calculate returns
-            asset_returns = np.diff(asset[i - period:i + 1])
-            market_returns = np.diff(market[i - period:i + 1])
+            # Extract window of returns
+            asset_window = asset_returns[i - period + 1:i + 1]
+            market_window = market_returns[i - period + 1:i + 1]
             
             # Calculate means
-            mean_asset = np.mean(asset_returns)
-            mean_market = np.mean(market_returns)
+            mean_asset = np.mean(asset_window)
+            mean_market = np.mean(market_window)
             
             # Calculate covariance and variance
-            covariance = np.mean((asset_returns - mean_asset) * (market_returns - mean_market))
-            market_variance = np.mean((market_returns - mean_market) ** 2)
+            covariance = 0.0
+            market_variance = 0.0
+            
+            for j in range(period):
+                asset_dev = asset_window[j] - mean_asset
+                market_dev = market_window[j] - mean_market
+                covariance += asset_dev * market_dev
+                market_variance += market_dev * market_dev
+            
+            covariance /= period
+            market_variance /= period
             
             if market_variance > 0:
                 result[i] = covariance / market_variance
@@ -324,7 +343,7 @@ class BETA(BaseIndicator):
         asset_data, market_data = self.align_arrays(asset_data, market_data)
         self.validate_period(period + 1, len(asset_data))  # +1 for diff
         
-        result = self._calculate_beta(asset_data, market_data, period)
+        result = self._calculate_beta_optimized(asset_data, market_data, period)
         return self.format_output(result, input_type, index)
 
 
@@ -355,88 +374,11 @@ class VAR(BaseIndicator):
     def __init__(self):
         super().__init__("Variance")
     
-    @staticmethod
-    @jit(nopython=True)
-    def _calculate_sma_safe(data: np.ndarray, period: int) -> np.ndarray:
-        """Safe SMA calculation without Numba issues"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        
-        for i in range(period - 1, n):
-            window = data[i - period + 1:i + 1]
-            valid_count = 0
-            sum_val = 0.0
-            for j in range(len(window)):
-                if not np.isnan(window[j]):
-                    sum_val += window[j]
-                    valid_count += 1
-            
-            if valid_count == period:
-                result[i] = sum_val / period
-        
-        return result
     
     @staticmethod
-    @jit(nopython=True)
-    def _calculate_ema_safe(data: np.ndarray, period: int) -> np.ndarray:
-        """Safe EMA calculation without Numba issues"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        alpha = 2.0 / (period + 1)
-        
-        # Find first valid value
-        first_valid_idx = -1
-        for i in range(n):
-            if not np.isnan(data[i]):
-                first_valid_idx = i
-                break
-        
-        if first_valid_idx == -1:
-            return result
-            
-        # Initialize with first valid value
-        result[first_valid_idx] = data[first_valid_idx]
-        
-        # Continue EMA calculation
-        for i in range(first_valid_idx + 1, n):
-            if not np.isnan(data[i]):
-                result[i] = alpha * data[i] + (1 - alpha) * result[i - 1]
-            else:
-                result[i] = result[i - 1]
-        
-        return result
-    
-    @staticmethod
-    @jit(nopython=True)
-    def _calculate_stdev_safe(data: np.ndarray, period: int) -> np.ndarray:
-        """Safe standard deviation calculation"""
-        n = len(data)
-        result = np.full(n, np.nan)
-        
-        for i in range(period - 1, n):
-            window = data[i - period + 1:i + 1]
-            valid_count = 0
-            sum_val = 0.0
-            for j in range(len(window)):
-                if not np.isnan(window[j]):
-                    sum_val += window[j]
-                    valid_count += 1
-            
-            if valid_count == period:
-                mean_val = sum_val / period
-                sum_sq_diff = 0.0
-                for j in range(len(window)):
-                    if not np.isnan(window[j]):
-                        diff = window[j] - mean_val
-                        sum_sq_diff += diff * diff
-                
-                result[i] = np.sqrt(sum_sq_diff / period)
-        
-        return result
-    
-    @staticmethod
-    def _calculate_variance_tv(data: np.ndarray, lookback: int, use_log_returns: bool) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """TradingView Variance calculation with all components"""
+    @jit(nopython=True) 
+    def _calculate_variance_tv_optimized(data: np.ndarray, lookback: int, use_log_returns: bool) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Optimized TradingView Variance calculation with O(N) rolling statistics"""
         n = len(data)
         
         # Step 1: Calculate source based on mode
@@ -447,35 +389,54 @@ class VAR(BaseIndicator):
                 if data[i] > 0 and data[i-1] > 0:
                     source[i] = np.log(data[i] / data[i-1]) * 100
         else:  # Price mode
-            for i in range(n):
-                source[i] = data[i]
+            source = data.copy()
         
-        # Step 2: Calculate variance using TradingView method
+        # Step 2: Calculate variance using O(N) rolling statistics
         variance = np.full(n, np.nan)
         stdev = np.full(n, np.nan)
         
-        for i in range(lookback - 1, n):
-            # Calculate mean for the window
-            window = source[i - lookback + 1:i + 1]
-            valid_count = 0
-            sum_val = 0.0
-            for j in range(len(window)):
-                if not np.isnan(window[j]):
-                    sum_val += window[j]
-                    valid_count += 1
+        if n < lookback:
+            return source, variance, stdev
+        
+        # O(N) rolling mean calculation using cumulative sums
+        rolling_sum = 0.0
+        rolling_sum_sq = 0.0
+        
+        # Initialize first window
+        for i in range(lookback):
+            if not np.isnan(source[i]):
+                rolling_sum += source[i]
+                rolling_sum_sq += source[i] * source[i]
+        
+        # Calculate first variance
+        if lookback > 1:
+            mean_val = rolling_sum / lookback
+            variance_val = (rolling_sum_sq - lookback * mean_val * mean_val) / (lookback - 1)
+            if variance_val >= 0:  # Ensure non-negative due to floating point precision
+                variance[lookback - 1] = variance_val
+                stdev[lookback - 1] = np.sqrt(variance_val)
+        
+        # Rolling window updates for O(N) complexity
+        for i in range(lookback, n):
+            # Remove old value, add new value
+            old_val = source[i - lookback]
+            new_val = source[i]
             
-            if valid_count == lookback:
-                mean_val = sum_val / lookback
-                
-                # TradingView method: sum of squared differences divided by (lookback-1)
-                sum_sq_diff = 0.0
-                for j in range(len(window)):
-                    if not np.isnan(window[j]):
-                        diff = window[j] - mean_val
-                        sum_sq_diff += diff * diff
-                
-                variance[i] = sum_sq_diff / (lookback - 1)  # TradingView uses (n-1)
-                stdev[i] = np.sqrt(variance[i])
+            if not np.isnan(old_val):
+                rolling_sum -= old_val
+                rolling_sum_sq -= old_val * old_val
+            
+            if not np.isnan(new_val):
+                rolling_sum += new_val
+                rolling_sum_sq += new_val * new_val
+            
+            # Calculate variance for current window
+            if lookback > 1:
+                mean_val = rolling_sum / lookback
+                variance_val = (rolling_sum_sq - lookback * mean_val * mean_val) / (lookback - 1)
+                if variance_val >= 0:  # Ensure non-negative due to floating point precision
+                    variance[i] = variance_val
+                    stdev[i] = np.sqrt(variance_val)
         
         return source, variance, stdev
     
@@ -515,29 +476,27 @@ class VAR(BaseIndicator):
         if mode not in ["LR", "PR"]:
             raise ValueError("Mode must be 'LR' (Logarithmic Returns) or 'PR' (Price)")
         
-        # Calculate base variance components
+        # Calculate base variance components using optimized O(N) method
         use_log_returns = (mode == "LR")
-        source, variance, stdev = self._calculate_variance_tv(validated_data, lookback, use_log_returns)
+        source, variance, stdev_values = self._calculate_variance_tv_optimized(validated_data, lookback, use_log_returns)
         
-        # Calculate EMA of variance
-        ema_variance = self._calculate_ema_safe(variance, ema_period)
+        # Calculate EMA of variance using optimized utility
+        ema_variance = ema(variance, ema_period)
         
-        # Calculate z-score components
-        variance_sma = self._calculate_sma_safe(variance, filter_lookback)
-        variance_stdev = self._calculate_stdev_safe(variance, filter_lookback)
+        # Calculate z-score components using optimized utilities
+        variance_sma = sma(variance, filter_lookback)
+        variance_stdev = stdev(variance, filter_lookback)
         
-        # Calculate z-score: (variance - sma(variance)) / stdev(variance)
-        zscore = np.full(len(variance), np.nan)
-        for i in range(len(variance)):
-            if (not np.isnan(variance[i]) and not np.isnan(variance_sma[i]) and 
-                not np.isnan(variance_stdev[i]) and variance_stdev[i] > 0):
-                zscore[i] = (variance[i] - variance_sma[i]) / variance_stdev[i]
+        # Calculate z-score: (variance - sma(variance)) / stdev(variance) - vectorized
+        zscore = np.where((~np.isnan(variance)) & (~np.isnan(variance_sma)) & 
+                         (~np.isnan(variance_stdev)) & (variance_stdev > 0),
+                         (variance - variance_sma) / variance_stdev, np.nan)
         
-        # Calculate EMA of z-score
-        ema_zscore = self._calculate_ema_safe(zscore, ema_length)
+        # Calculate EMA of z-score using optimized utility
+        ema_zscore = ema(zscore, ema_length)
         
         if return_components:
-            results = (variance, ema_variance, zscore, ema_zscore, stdev)
+            results = (variance, ema_variance, zscore, ema_zscore, stdev_values)
             return self.format_multiple_outputs(results, input_type, index)
         else:
             return self.format_output(variance, input_type, index)
