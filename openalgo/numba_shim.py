@@ -23,7 +23,7 @@ def jit(*args, **kwargs):  # type: ignore[override]
     All existing keyword arguments still work and can override these
     defaults (e.g. parallel=True).
     """
-    kwargs.setdefault("nopython", True)
+    kwargs.pop("nopython", None)
     kwargs.setdefault("fastmath", True)
     kwargs.setdefault("cache", True)
     return njit(*args, **kwargs)

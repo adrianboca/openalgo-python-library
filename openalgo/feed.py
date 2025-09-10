@@ -244,6 +244,7 @@ class FeedAPI(BaseAPI):
                                 'low': market_data.get("low", 0),
                                 'close': market_data.get("close", 0),
                                 'ltp': market_data.get("ltp", 0),
+                                'volume': market_data.get("volume", 0),
                                 'timestamp': market_data.get("timestamp", int(time.time() * 1000))
                             }
                             
@@ -755,7 +756,8 @@ class FeedAPI(BaseAPI):
                     "high": high,
                     "low": low,
                     "close": close,
-                    "ltp": ltp
+                    "ltp": ltp,
+                    "volume": volume
                 }}}}
         """
         with self.lock:
@@ -789,7 +791,8 @@ class FeedAPI(BaseAPI):
                         "high": data['high'],
                         "low": data['low'],
                         "close": data['close'],
-                        "ltp": data['ltp']
+                        "ltp": data['ltp'],
+                        "volume": data.get('volume', 0)
                     }
             
             return result
