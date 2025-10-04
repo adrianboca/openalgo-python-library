@@ -11,7 +11,7 @@ class BaseAPI:
     Base class to handle all the API calls to OpenAlgo.
     """
 
-    def __init__(self, api_key, host="http://127.0.0.1:5000", version="v1"):
+    def __init__(self, api_key, host="http://127.0.0.1:5000", version="v1", timeout=120.0):
         """
         Initialize the api object with an API key and optionally a host URL and API version.
 
@@ -19,9 +19,11 @@ class BaseAPI:
         - api_key (str): User's API key.
         - host (str): Base URL for the API endpoints. Defaults to localhost.
         - version (str): API version. Defaults to "v1".
+        - timeout (float): Request timeout in seconds. Defaults to 120.0 seconds.
         """
         self.api_key = api_key
         self.base_url = f"{host}/api/{version}/"
         self.headers = {
             'Content-Type': 'application/json'
         }
+        self.timeout = timeout
