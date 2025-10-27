@@ -2,11 +2,11 @@ from setuptools import setup, find_packages
 
 setup(
     name="openalgo",
-    version="1.0.32",
+    version="1.0.33",
     author="Rajandran R",
     author_email="rajandran@openalgo.in",
     description="A Python library for interacting with OpenAlgo's trading APIs with high-performance technical indicators",
-    long_description=open('README.md').read(),
+    long_description=open('README.md', encoding='utf-8').read(),
     long_description_content_type="text/markdown",
     url="https://openalgo.in",
     packages=find_packages(),

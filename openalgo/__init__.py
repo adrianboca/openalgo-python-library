@@ -8,6 +8,8 @@ from .data import DataAPI
 from .account import AccountAPI
 from .strategy import Strategy
 from .feed import FeedAPI
+from .options import OptionsAPI
+from .telegram import TelegramAPI
 from .indicators import ta
 
 # ------------------------------------------------------------------
@@ -23,13 +25,13 @@ _nb.jit = _jit_shim  # monkey-patch once at import time
 nbjit = _jit_shim
 prange = _prange
 
-class api(OrderAPI, DataAPI, AccountAPI, FeedAPI):
+class api(OrderAPI, DataAPI, AccountAPI, FeedAPI, OptionsAPI, TelegramAPI):
     """
     OpenAlgo API client class
     """
     pass
 
-__version__ = "1.0.32"
+__version__ = "1.0.33"
 
 # Export main components for easy access
 __all__ = ['api', 'Strategy', 'ta', 'nbjit', 'prange']

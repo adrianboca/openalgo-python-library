@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: openalgo
-Version: 1.0.32
+Version: 1.0.33
 Summary: A Python library for interacting with OpenAlgo's trading APIs with high-performance technical indicators
 Home-page: https://openalgo.in
 Author: Rajandran R
@@ -604,6 +604,344 @@ result = client.expiry(
 }
 ```
 
+### 6. Options API
+
+The Options API provides advanced options trading capabilities including Greeks calculation, auto-symbol resolution, and smart order placement.
+
+#### Option Greeks
+Calculate Option Greeks (Delta, Gamma, Theta, Vega, Rho) and Implied Volatility using Black-Scholes Model.
+
+**Prerequisites:**
+- Install mibian library: `pip install mibian`
+- Requires real-time LTP for underlying and option
+
+```python
+# Basic usage - Auto-detects spot price
+greeks = client.optiongreeks(
+    symbol="NIFTY28NOV2526000CE",
+    exchange="NFO"
+)
+# Returns: Delta, Gamma, Theta, Vega, Rho, IV, and other details
+
+# With custom interest rate (for accurate Rho)
+greeks = client.optiongreeks(
+    symbol="BANKNIFTY28NOV2550000CE",
+    exchange="NFO",
+    interest_rate=6.5  # Current RBI repo rate
+)
+
+# Using futures as underlying (for arbitrage strategies)
+greeks = client.optiongreeks(
+    symbol="NIFTY28NOV2526000CE",
+    exchange="NFO",
+    underlying_symbol="NIFTY28NOV25FUT",
+    underlying_exchange="NFO"
+)
+
+# MCX with custom expiry time
+greeks = client.optiongreeks(
+    symbol="CRUDEOIL17NOV255400CE",
+    exchange="MCX",
+    expiry_time="19:00"  # Crude Oil expires at 7:00 PM
+)
+
+# Response format:
+{
+    "status": "success",
+    "symbol": "NIFTY28NOV2526000CE",
+    "strike": 26000,
+    "option_type": "CE",
+    "spot_price": 25966.05,
+    "option_price": 85.55,
+    "days_to_expiry": 5.42,
+    "implied_volatility": 15.25,
+    "greeks": {
+        "delta": 0.5234,
+        "gamma": 0.000125,
+        "theta": -12.5678,
+        "vega": 18.7654,
+        "rho": 0.001234
+    }
+}
+```
+
+#### Option Symbol
+Get option symbol details based on underlying and offset without placing an order.
+
+```python
+# Get ATM call symbol details
+symbol_info = client.optionsymbol(
+    underlying="NIFTY",
+    exchange="NSE_INDEX",
+    expiry_date="28NOV24",
+    strike_int=50,
+    offset="ATM",
+    option_type="CE"
+)
+# Returns: symbol, lot size, tick size, underlying LTP
+
+# Get OTM put for BANKNIFTY
+symbol_info = client.optionsymbol(
+    underlying="BANKNIFTY",
+    exchange="NSE_INDEX",
+    expiry_date="28NOV24",
+    strike_int=100,
+    offset="OTM2",  # 2 strikes Out-of-The-Money
+    option_type="PE"
+)
+
+# Using future as underlying
+symbol_info = client.optionsymbol(
+    underlying="NIFTY28OCT25FUT",
+    exchange="NFO",
+    strike_int=50,
+    offset="ITM2",  # 2 strikes In-The-Money
+    option_type="CE"
+)
+
+# Response format:
+{
+    "status": "success",
+    "symbol": "NIFTY28NOV2526000CE",
+    "exchange": "NFO",
+    "lotsize": 75,
+    "tick_size": 0.05,
+    "underlying_ltp": 25966.05
+}
+```
+
+**Offset Options:**
+- `ATM` - At-The-Money
+- `ITM1` to `ITM50` - In-The-Money (1-50 strikes)
+- `OTM1` to `OTM50` - Out-of-The-Money (1-50 strikes)
+
+#### Options Order
+Place option orders with auto-resolved symbols based on underlying and offset.
+
+```python
+# Buy ATM call with MARKET order
+result = client.optionsorder(
+    strategy="test_strategy",
+    underlying="NIFTY",
+    exchange="NSE_INDEX",
+    expiry_date="28NOV24",
+    strike_int=50,
+    offset="ATM",
+    option_type="CE",
+    action="BUY",
+    quantity=75,
+    price_type="MARKET",
+    product="MIS"
+)
+
+# Sell OTM put with LIMIT order
+result = client.optionsorder(
+    strategy="nifty_scalping",
+    underlying="NIFTY",
+    exchange="NSE_INDEX",
+    expiry_date="28NOV24",
+    strike_int=50,
+    offset="OTM1",
+    option_type="PE",
+    action="SELL",
+    quantity=75,
+    price_type="LIMIT",
+    product="MIS",
+    price="50.0"
+)
+
+# Using future as underlying
+result = client.optionsorder(
+    strategy="futures_arb",
+    underlying="NIFTY28OCT25FUT",
+    exchange="NFO",
+    strike_int=50,
+    offset="ITM2",
+    option_type="CE",
+    action="BUY",
+    quantity=75
+)
+
+# Stop Loss order
+result = client.optionsorder(
+    strategy="protective_stop",
+    underlying="BANKNIFTY",
+    exchange="NSE_INDEX",
+    expiry_date="28NOV24",
+    strike_int=100,
+    offset="ATM",
+    option_type="PE",
+    action="SELL",
+    quantity=30,
+    price_type="SL",
+    product="MIS",
+    price="100.0",
+    trigger_price="105.0"
+)
+
+# Response format:
+{
+    "status": "success",
+    "orderid": "240123000001234",
+    "symbol": "NIFTY28NOV2524000CE",
+    "underlying": "NIFTY",
+    "underlying_ltp": 23987.50,
+    "offset": "ATM",
+    "option_type": "CE"
+}
+```
+
+**Building Option Strategies:**
+
+Iron Condor Example:
+```python
+# Leg 1: Sell OTM1 Call
+client.optionsorder(
+    underlying="NIFTY", offset="OTM1", option_type="CE",
+    action="SELL", quantity=75, **common_params
+)
+
+# Leg 2: Sell OTM1 Put
+client.optionsorder(
+    underlying="NIFTY", offset="OTM1", option_type="PE",
+    action="SELL", quantity=75, **common_params
+)
+
+# Leg 3: Buy OTM3 Call
+client.optionsorder(
+    underlying="NIFTY", offset="OTM3", option_type="CE",
+    action="BUY", quantity=75, **common_params
+)
+
+# Leg 4: Buy OTM3 Put
+client.optionsorder(
+    underlying="NIFTY", offset="OTM3", option_type="PE",
+    action="BUY", quantity=75, **common_params
+)
+```
+
+### 7. Telegram Notification API
+
+Send custom alert messages to Telegram users for real-time trading notifications.
+
+**Prerequisites:**
+1. Telegram Bot must be running in OpenAlgo settings
+2. User must link account using `/link` command in Telegram
+3. Username is your OpenAlgo login username (NOT Telegram @username)
+
+```python
+# Basic notification
+result = client.telegram(
+    username="john_trader",  # Your OpenAlgo login username
+    message="NIFTY crossed 24000! Consider taking profit."
+)
+
+# High priority urgent alert
+result = client.telegram(
+    username="john_trader",
+    message="🚨 URGENT: Stop loss hit on BANKNIFTY position!",
+    priority=10
+)
+
+# Multi-line trading summary with emojis
+result = client.telegram(
+    username="john_trader",
+    message="""📊 Daily Trading Summary
+─────────────────────
+✅ Winning Trades: 8
+❌ Losing Trades: 2
+💰 Net P&L: +₹15,450
+📈 Win Rate: 80%
+
+🎯 Great day! Keep it up!""",
+    priority=5
+)
+
+# Price alert notification
+result = client.telegram(
+    username="trader_123",
+    message="🔔 Price Alert: RELIANCE reached target price ₹2,850",
+    priority=8
+)
+
+# Strategy signal alert
+result = client.telegram(
+    username="algo_trader",
+    message="""📈 BUY Signal: RSI oversold on NIFTY 24000 CE
+Entry: ₹145.50
+Target: ₹165.00
+SL: ₹138.00""",
+    priority=9
+)
+
+# Risk management alert
+result = client.telegram(
+    username="trader_123",
+    message="""⚠️ Risk Alert: Daily loss limit reached (-₹25,000)
+No new positions recommended.""",
+    priority=10
+)
+
+# Trade execution confirmation
+result = client.telegram(
+    username="trader_123",
+    message="""✅ Order Executed
+Symbol: BANKNIFTY 48000 CE
+Action: BUY
+Qty: 30
+Price: ₹245.75
+Total: ₹7,372.50""",
+    priority=7
+)
+
+# Response format:
+{
+    "status": "success",
+    "message": "Notification sent successfully"
+}
+```
+
+**Priority Levels:**
+- 1-3: Low Priority (General updates, market news)
+- 4-6: Normal Priority (Trade signals, daily summaries)
+- 7-8: High Priority (Price alerts, position updates)
+- 9-10: Urgent (Stop loss hits, risk alerts)
+
+**Message Formatting:**
+- Bold: `*text*` or `**text**`
+- Italic: `_text_` or `__text__`
+- Code: `` `text` ``
+- Line breaks: Use `\n` in message string
+- Emojis: Standard Unicode emojis supported
+- Maximum length: 4096 characters
+
+**Integration with Trading:**
+```python
+# After order execution
+if order_status == "success":
+    client.telegram(
+        username="trader",
+        message=f"✅ Order executed: {symbol} {action} {quantity}",
+        priority=7
+    )
+
+# Price monitoring
+if current_price >= target_price:
+    client.telegram(
+        username="trader",
+        message=f"🎯 {symbol} reached target: ₹{current_price}",
+        priority=9
+    )
+
+# Risk management
+if daily_loss >= max_loss_limit:
+    client.telegram(
+        username="trader",
+        message=f"🚨 Daily loss limit reached: -₹{daily_loss}",
+        priority=10
+    )
+```
+
 ## Examples
 
 Check the examples directory for detailed usage:
@@ -613,6 +951,8 @@ Check the examples directory for detailed usage:
 - feed_examples.py: Test WebSocket LTP feeds
 - quote_example.py: Test WebSocket quote feeds
 - depth_example.py: Test WebSocket market depth feeds
+- options_examples.py: Test Options API (Greeks, symbol resolution, orders)
+- telegram_examples.py: Test Telegram notification API
 
 ## Publishing to PyPI
 
